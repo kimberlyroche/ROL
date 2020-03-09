@@ -6,55 +6,35 @@
 
 using namespace Rcpp;
 
-// rcppeigen_hello_world
-Eigen::MatrixXd rcppeigen_hello_world();
-RcppExport SEXP _ROL_rcppeigen_hello_world() {
+// Riemann_dist_samples
+Eigen::MatrixXd Riemann_dist_samples(Eigen::MatrixXd samples, int n_indiv, int n_samples_per);
+RcppExport SEXP _ROL_Riemann_dist_samples(SEXP samplesSEXP, SEXP n_indivSEXP, SEXP n_samples_perSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(rcppeigen_hello_world());
+    Rcpp::traits::input_parameter< Eigen::MatrixXd >::type samples(samplesSEXP);
+    Rcpp::traits::input_parameter< int >::type n_indiv(n_indivSEXP);
+    Rcpp::traits::input_parameter< int >::type n_samples_per(n_samples_perSEXP);
+    rcpp_result_gen = Rcpp::wrap(Riemann_dist_samples(samples, n_indiv, n_samples_per));
     return rcpp_result_gen;
 END_RCPP
 }
-// rcppeigen_outerproduct
-Eigen::MatrixXd rcppeigen_outerproduct(const Eigen::VectorXd& x);
-RcppExport SEXP _ROL_rcppeigen_outerproduct(SEXP xSEXP) {
+// Riemann_dist_pair
+double Riemann_dist_pair(Eigen::MatrixXd A, Eigen::MatrixXd B);
+RcppExport SEXP _ROL_Riemann_dist_pair(SEXP ASEXP, SEXP BSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type x(xSEXP);
-    rcpp_result_gen = Rcpp::wrap(rcppeigen_outerproduct(x));
-    return rcpp_result_gen;
-END_RCPP
-}
-// rcppeigen_innerproduct
-double rcppeigen_innerproduct(const Eigen::VectorXd& x);
-RcppExport SEXP _ROL_rcppeigen_innerproduct(SEXP xSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type x(xSEXP);
-    rcpp_result_gen = Rcpp::wrap(rcppeigen_innerproduct(x));
-    return rcpp_result_gen;
-END_RCPP
-}
-// rcppeigen_bothproducts
-Rcpp::List rcppeigen_bothproducts(const Eigen::VectorXd& x);
-RcppExport SEXP _ROL_rcppeigen_bothproducts(SEXP xSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type x(xSEXP);
-    rcpp_result_gen = Rcpp::wrap(rcppeigen_bothproducts(x));
+    Rcpp::traits::input_parameter< Eigen::MatrixXd >::type A(ASEXP);
+    Rcpp::traits::input_parameter< Eigen::MatrixXd >::type B(BSEXP);
+    rcpp_result_gen = Rcpp::wrap(Riemann_dist_pair(A, B));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_ROL_rcppeigen_hello_world", (DL_FUNC) &_ROL_rcppeigen_hello_world, 0},
-    {"_ROL_rcppeigen_outerproduct", (DL_FUNC) &_ROL_rcppeigen_outerproduct, 1},
-    {"_ROL_rcppeigen_innerproduct", (DL_FUNC) &_ROL_rcppeigen_innerproduct, 1},
-    {"_ROL_rcppeigen_bothproducts", (DL_FUNC) &_ROL_rcppeigen_bothproducts, 1},
+    {"_ROL_Riemann_dist_samples", (DL_FUNC) &_ROL_Riemann_dist_samples, 3},
+    {"_ROL_Riemann_dist_pair", (DL_FUNC) &_ROL_Riemann_dist_pair, 2},
     {NULL, NULL, 0}
 };
 
