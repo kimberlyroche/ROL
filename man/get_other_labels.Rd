@@ -4,10 +4,15 @@
 \alias{get_other_labels}
 \title{Get other annotations (e.g. sample number) for hosts in data set}
 \usage{
-get_other_labels(data, tax_level = "genus", annotation = "group", MAP = FALSE)
+get_other_labels(
+  centroids,
+  tax_level = "genus",
+  annotation = "group",
+  MAP = FALSE
+)
 }
 \arguments{
-\item{data}{a phyloseq object}
+\item{centroids}{data.frame of per-host centroids from posterior embedding}
 
 \item{tax_level}{taxonomic level at which to agglomerate data}
 
@@ -28,5 +33,6 @@ momdied, competingsib, earlyadversity, birthrate_all, birthrate_surviving, alpha
 wetproportion
 }
 \examples{
-labelled_centoids <- get_other_labels(data, tax_level="genus", annotation="group", MAP=FALSE)
+centroids <- readRDS(file.path("output","plots","genus","Sigma_ordination_centroids.rds"))
+labelled_centoids <- get_other_labels(centroids, tax_level="genus", annotation="group", MAP=FALSE)
 }

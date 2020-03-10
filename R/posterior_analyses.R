@@ -67,6 +67,7 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
 #' @details Distance matrix between posterior samples must be present in designated output directory
 #' @return NULL
 #' @import ggplot2
+#' @import tidyr
 #' @export
 #' @examples
 #' embed_posteriors(tax_level="genus", which_measure="Sigma", MAP=FALSE)
@@ -94,7 +95,11 @@ embed_posteriors <- function(tax_level="genus", which_measure="Sigma", MAP=FALSE
   cat(paste0("Eigenvalue #5: ",round(fit$eig[5],2)," (% variance: ",round(abs(fit$eig[5])/eig_tot,2),")\n"))
   cat(paste0("Eigenvalue #6: ",round(fit$eig[6],2)," (% variance: ",round(abs(fit$eig[6])/eig_tot,2),")\n"))
   
-  # save coordinates of interest in a data.frame
+  # save coordinates of interest in a data.frame; this will have the form
+  #   coord     value labels
+  # 1     1 -1.876277    ZIB
+  # 2     1 -2.336495    ZIB
+  # ...
   df <- data.frame(coord=c(), value=c(), labels=c())
   for(i in 1:ncol(fit$points)) {
     df <- rbind(df, data.frame(coord=rep(i, nrow(fit$points)), value=fit$points[,i], labels=host_labels))
@@ -107,13 +112,12 @@ embed_posteriors <- function(tax_level="genus", which_measure="Sigma", MAP=FALSE
     saveRDS(df, file.path("output","plots",tax_level,paste0(which_measure,"_ordination.rds")))
   }
 
-  # calculate centroids of each host's cluster
   df_centroids <- NULL
   for(i in 1:max(df$coord)) {
     temp <- df[df$coord == i,] %>%
       group_by(labels) %>%
       summarise(mean=mean(value))
-    names(temp) <- c("labels", paste0("mean_x",i))
+    names(temp) <- c("labels", i)
     if(is.null(df_centroids)) {
       df_centroids <- temp
     } else {
@@ -121,6 +125,10 @@ embed_posteriors <- function(tax_level="genus", which_measure="Sigma", MAP=FALSE
     }
   }
   df_centroids <- as.data.frame(df_centroids)
+  # transform these such that they're in the same format as the coordinates data.frame
+  df_centroids <- gather(df_centroids, "coord", "value", 2:ncol(df_centroids))
+  df_centroids <- df_centroids[,colnames(df)]
+  
   
   if(MAP) {
     saveRDS(df_centroids, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination_centroids.rds")))
@@ -145,35 +153,9 @@ load_outcomes <- function(hosts) {
   return(outcomes)
 }
 
-#' Get primary social group for all hosts in data set
-#' 
-#' @details Output is a data.frame of fitness annotations sorted by host short name
-#' @return named list
-#' @import dplyr
-#' @export
-#' @examples
-#' group_labels <- get_group_labels(data)
-get_group_labels <- function(data) {
-  metadata <- sample_data(data)
-  hosts <- unique(metadata$sname)
-  # create a list indexed by host name
-  labels <- numeric(length(hosts))
-  names(labels) <- hosts
-  primary_group <- suppressWarnings(metadata %>%
-                                      select(c("sname", "collection_date", "grp")) %>%
-                                      filter(sname %in% hosts) %>% 
-                                      group_by(sname, grp) %>%
-                                      tally() %>%
-                                      slice(which.max(n)))
-  for(host in hosts) {
-    labels[host] <- primary_group[primary_group$sname == host,]$grp[[1]]
-  }
-  return(labels)
-}
-
 #' Get other annotations (e.g. sample number) for hosts in data set
 #' 
-#' @param data a phyloseq object
+#' @param centroids data.frame of per-host centroids from posterior embedding
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param annotation label to assign (e.g. individual)
 #' @param MAP use MAP estimate model output instead of full posterior output
@@ -182,18 +164,18 @@ get_group_labels <- function(data) {
 #' momdied, competingsib, earlyadversity, birthrate_all, birthrate_surviving, alphadiv,
 #' wetproportion 
 #' @return data.frame
+#' @import phyloseq
 #' @import dplyr
 #' @export
 #' @examples
-#' labelled_centoids <- get_other_labels(data, tax_level="genus", annotation="group", MAP=FALSE)
-get_other_labels <- function(data, tax_level="genus", annotation="group", MAP=FALSE) {
-  if(MAP) {
-    centroids <- readRDS(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
-  } else {
-    centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
-  }
+#' centroids <- readRDS(file.path("output","plots","genus","Sigma_ordination_centroids.rds"))
+#' labelled_centoids <- get_other_labels(centroids, tax_level="genus", annotation="group", MAP=FALSE)
+get_other_labels <- function(centroids, tax_level="genus", annotation="group", MAP=FALSE) {
+  # pull unique hosts from centroids
+  hosts <<- unique(as.character(centroids$labels))
+  data <- load_data(tax_level)
+  data <- subset_samples(data, sname %in% hosts)
   metadata <- sample_data(data)
-  hosts <- unique(metadata$sname)
   # create a list indexed by host name
   labels <- numeric(length(hosts))
   names(labels) <- hosts
@@ -310,3 +292,106 @@ get_other_labels <- function(data, tax_level="genus", annotation="group", MAP=FA
   centroids$labels <- labels
   return(centroids)
 }
+
+#' Plot a pair of principal coordinates
+#' 
+#' @param coordinates data.frame of coordinates from posterior embedding
+#' @param centroids data.frame of centroids from posterior embedding
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param axis1 PCoA coordinate to display on x-axis
+#' @param axis2 PCoA coordinate to display on y-axis
+#' @param annotation label to assign (e.g. individual)
+#' @param MAP use MAP estimate model output instead of full posterior output
+#' @details Coordinates parameter is only necessary where we're plotting full host posteriors (i.e. where
+#' annotation="individual").
+#' @return NULL
+#' @import ggplot2
+#' @export
+#' @examples
+#' tax_level <- "genus"
+#' annotation <- "group"
+#' MAP <- FALSE
+#' centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
+#' labelled_centroids <- get_other_labels(centroids=centroids, tax_level=tax_level, annotation=annotation, MAP=MAP)
+#' plot_axes(coordinates=labelled_centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation, MAP=MAP)
+plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, axis2=2, annotation="individual", MAP=FALSE) {
+  if(annotation == "individual") {
+    point_size <- 1
+    point_df <- data.frame(ax1=coordinates[coordinates$coord == axis1,]$value,
+                          ax2=coordinates[coordinates$coord == axis2,]$value,
+                          labels=coordinates[coordinates$coord == axis1,]$labels)
+    p <- ggplot() +
+      geom_point(data=point_df, aes(x=ax1, y=ax2, color=labels), size=point_size)
+    text_df <- data.frame(ax1=centroids[centroids$coord == axis1,]$value,
+                          ax2=centroids[centroids$coord == axis2,]$value,
+                          labels=centroids[centroids$coord == axis1,]$labels)
+    p <- p +
+      geom_text(data=text_df, aes(x=ax1, y=ax2, label=labels), color="black", fontface="bold")
+    p <- p + theme(legend.position='none')
+    img_width <- 4
+  } else {
+    point_size <- 3
+    plot_df <- data.frame(ax1=centroids[centroids$coord == axis1,]$value,
+                          ax2=centroids[centroids$coord == axis2,]$value,
+                          labels=centroids[centroids$coord == axis1,]$labels)
+    p <- ggplot() + geom_point(data=plot_df, aes(x=ax1, y=ax2, color=labels), size=point_size)
+    if(annotation == "samplenumber" | annotation == "sampledensity") {
+      p <- p + scale_color_gradient(low="blue", high="red")
+    }
+    img_width <- 4.5
+  }
+  
+  if(MAP) {
+    save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
+  } else {
+    save_dir <- check_output_dir(c("output","plots",tax_level))
+  }
+  plot_save_name <- paste0("Sigma_ordination_",axis1,"x",axis2,"_",annotation,".png")
+  
+  aspect_ratio.x <- max(centroids[centroids$coord == axis1,]$value) - min(centroids[centroids$coord == axis1,]$value)
+  aspect_ratio.y <- max(centroids[centroids$coord == axis2,]$value) - min(centroids[centroids$coord == axis2,]$value)
+  img_height <- (aspect_ratio.y/aspect_ratio.x)*img_width
+  if(img_height < 2) {
+    img_height <- 2
+  }
+  ggsave(file.path(save_dir, plot_save_name), plot=p, dpi=150, scale=1.5, width=img_width, height=img_height, units="in")
+}
+
+#' Plot a pair of principal coordinates
+#' 
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param which_measure estimated object to visualize, either Lambda or Sigma
+#' @param axis2 PCoA coordinate to display on y-axis
+#' @param annotation label to assign (e.g. individual)
+#' @param MAP use MAP estimate model output instead of full posterior output
+#' @return NULL
+#' @import ggplot2
+#' @export
+#' @examples
+#' plot_ordination(tax_level="genus", axis1=1, axis2=2, annotation="individual", MAP=FALSE)
+plot_ordination <- function(tax_level="genus", which_measure="Sigma", annotation="individual", MAP=FALSE) {
+  if(annotation == "individual") {
+    if(MAP) {
+      coordinates <- readRDS(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination.rds"))
+      centroids <- readRDS(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+    } else {
+      coordinates <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination.rds"))
+      centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
+    }
+    plot_axes(coordinates=coordinates, centroids=centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation, MAP=FALSE)
+    plot_axes(coordinates=coordinates, centroids=centroids, tax_level=tax_level, axis1=3, axis2=4, annotation=annotation, MAP=FALSE)
+  } else {
+    if(MAP) {
+      centroids <- readRDS(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+    } else {
+      centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
+    }
+    centroids <- get_other_labels(centroids=centroids, tax_level=tax_level, annotation=annotation, MAP=MAP)
+    plot_axes(centroids=centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation, MAP=FALSE)
+    plot_axes(centroids=centroids, tax_level=tax_level, axis1=3, axis2=4, annotation=annotation, MAP=FALSE)
+  }
+}
+
+
+
+
