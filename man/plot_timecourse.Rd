@@ -9,7 +9,8 @@ plot_timecourse(
   host = NULL,
   gapped = FALSE,
   legend = TRUE,
-  selected_samples = NULL
+  selected_samples = NULL,
+  show_plot = FALSE
 )
 }
 \arguments{
@@ -22,10 +23,12 @@ plot_timecourse(
 \item{legend}{render legend}
 
 \item{selected_samples}{list of sample IDs to highlight (if visualizing a selection of a host's samples)}
+
+\item{show_plot}{show() plot in addition to rendering it to a file}
 }
 \description{
 Render bar plots for an individual host's series
 }
 \examples{
-data <- plot_timecourse(data, host="ACA", gapped=FALSE, legend=TRUE, selected_samples=NULL)
+plot_timecourse(data, host="ACA", gapped=FALSE, legend=TRUE, selected_samples=NULL)
 }

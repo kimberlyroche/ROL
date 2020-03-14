@@ -4,6 +4,7 @@
 #' @param host host short name (e.g. ACA)
 #' @param gapped render true sample spacing (approximately)
 #' @param legend render legend
+#' @param show_plot show() plot in addition to rendering it to a file
 #' @param selected_samples list of sample IDs to highlight (if visualizing a selection of a host's samples)
 #' @return NULL
 #' @import phyloseq
@@ -12,8 +13,8 @@
 #' @import ggplot2
 #' @export
 #' @examples
-#' data <- plot_timecourse(data, host="ACA", gapped=FALSE, legend=TRUE, selected_samples=NULL)
-plot_timecourse <- function(data, host=NULL, gapped=FALSE, legend=TRUE, selected_samples=NULL) {
+#' plot_timecourse(data, host="ACA", gapped=FALSE, legend=TRUE, selected_samples=NULL)
+plot_timecourse <- function(data, host=NULL, gapped=FALSE, legend=TRUE, selected_samples=NULL, show_plot=FALSE) {
   if(is.null(host)) {
     cat("Error: omitted host short name in plot_timecourse()!\n")
     return(NULL)
@@ -107,6 +108,9 @@ plot_timecourse <- function(data, host=NULL, gapped=FALSE, legend=TRUE, selected
     p <- p + theme(legend.position="none")
   }
   save_dir <- check_output_dir(c("output","plots"))
+  if(show_plot) {
+    show(p)
+  }
   ggsave(file.path(save_dir,paste0(host,"_timecourse.png")),
          plot=p, scale=1.5, dpi=100, width=img_width, height=6, units="in")
 }
@@ -163,13 +167,9 @@ calc_autocorrelation <- function(data, lag_units="weeks", lag_max=52, use_lr="il
   log_ratios <- scale(log_ratios, center=TRUE, scale=FALSE)
 
   for(r in 1:rounds) {
-    if(resample) {
-      cat(paste0("Resampling iteration #",r,"\n"))
-    }
     lag_sums <- numeric(lag_max)
     lag_measured <- numeric(lag_max)
     for(host in hosts) {
-      cat(host,"\n")
       # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
       host <<- host
       # pull sample IDs associated with this individual
@@ -259,13 +259,14 @@ calc_autocorrelation <- function(data, lag_units="weeks", lag_max=52, use_lr="il
 #' Renders autocorrelation plot (without uncertainty estimates)
 #' 
 #' @param lags data.frame of lags and estimated autocorrelation (output of calc_autocorrelation())
+#' @param show_plot show() plot in addition to rendering it to a file
 #' @return NULL
 #' @import ggplot2
 #' @export
 #' @examples
 #' lagged_ac <- calc_autocorrelation(data, lag_units="weeks", lag_max=52, use_lr="ilr", alr_ref=NULL, resample=FALSE, resample_rate=0.2)
 #' plot_mean_autocorrelation(lagged_ac)
-plot_mean_autocorrelation <- function(lagged_ac) {
+plot_mean_autocorrelation <- function(lagged_ac, show_plot=FALSE) {
   lag_max <- max(lagged_ac$lag)
   p <- ggplot(lagged_ac, aes(x=lag, y=ac)) +
     geom_line(linetype = "dashed") +
@@ -278,6 +279,9 @@ plot_mean_autocorrelation <- function(lagged_ac) {
     geom_hline(yintercept = 0)
   save_dir <- check_output_dir(c("output","plots"))
   lag_units <- lagged_ac[1,"units"] # there should be only one unique value
+  if(show_plot) {
+    show(p)
+  }
   ggsave(file.path(save_dir,paste0("autocorrelation_",lag_units,"_",lag_max,".png")),
          plot=p, dpi=100, scale=1.5, width=8, height=4, units="in")
 }
@@ -285,13 +289,14 @@ plot_mean_autocorrelation <- function(lagged_ac) {
 #' Renders autocorrelation plot with uncertainty estimates
 #' 
 #' @param lags data.frame of lags and estimated autocorrelation (output of calc_autocorrelation())
+#' @param show_plot show() plot in addition to rendering it to a file
 #' @return NULL
 #' @import ggplot2
 #' @export
 #' @examples
 #' lagged_ac <- calc_autocorrelation(data, lag_units="weeks", lag_max=52, use_lr="ilr", alr_ref=NULL, resample=TRUE, resample_rate=0.2)
 #' plot_bounded_autocorrelation(lagged_ac)
-plot_bounded_autocorrelation <- function(lagged_ac) {
+plot_bounded_autocorrelation <- function(lagged_ac, show_plot=FALSE) {
   lag_max <- max(lagged_ac$lag)
   p <- ggplot(lagged_ac, aes(x=lag, y=ac)) +
   geom_line(linetype="solid") +
@@ -305,6 +310,9 @@ plot_bounded_autocorrelation <- function(lagged_ac) {
     geom_hline(yintercept = 0)
   save_dir <- check_output_dir(c("output","plots"))
   lag_units <- lagged_ac[1,"units"] # there should be only one unique value
+  if(show_plot) {
+    show(p)
+  }
   ggsave(file.path(save_dir,paste0("autocorrelation_",lag_units,"_",lag_max,"_resampled.png")),
          plot=p, dpi=100, scale=1.5, width=8, height=4, units="in")
 }

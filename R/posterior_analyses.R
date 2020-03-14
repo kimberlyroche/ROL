@@ -27,7 +27,7 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
   # insert samples (column-wise) into samples matrix
   host_labels <- c()
   for(i in 1:n_hosts) {
-    fit <- fix_MAP_dims(readRDS(model_list$model_list[i])$fit)
+    fit <- fix_MAP_dims(read_file(model_list$model_list[i])$fit)
     # convert to ILR; this can be removed
     V <- driver::create_default_ilr_base(ncategories(fit))
     fit.ilr <- to_ilr(fit, V)
@@ -67,6 +67,7 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
 #' @details Distance matrix between posterior samples must be present in designated output directory
 #' @return NULL
 #' @import ggplot2
+#' @import dplyr
 #' @import tidyr
 #' @export
 #' @examples
@@ -80,21 +81,22 @@ embed_posteriors <- function(tax_level="genus", which_measure="Sigma", MAP=FALSE
   if(!file.exists(dist_filename)) {
     stop(paste0("Error: unable to locate distance matrix over posterior samples at level ",tax_level,"!\n"))
   }
-  dist_obj <- readRDS(dist_filename)
+  dist_obj <- read_file(dist_filename)
   host_labels <- dist_obj$host_labels
   distance_mat <- dist_obj$distance_mat
   
-  fit <- cmdscale(distance_mat, eig=TRUE, k=100)
+  k <- 6
+  if(nrow(distance_mat) < k) {
+    k <- nrow(distance_mat)
+  }
+  fit <- cmdscale(distance_mat, eig=TRUE, k=k-1)
   # I believe in this case the magnitude of the eigenvalues is proportional to the variance
   # explained (technically it differs by a factor of n-1 [the DOF] I think)
   eig_tot <- sum(abs(fit$eig))
-  cat(paste0("Eigenvalue #1: ",round(fit$eig[1],2)," (% variance: ",round(abs(fit$eig[1])/eig_tot,2),")\n"))
-  cat(paste0("Eigenvalue #2: ",round(fit$eig[2],2)," (% variance: ",round(abs(fit$eig[2])/eig_tot,2),")\n"))
-  cat(paste0("Eigenvalue #3: ",round(fit$eig[3],2)," (% variance: ",round(abs(fit$eig[3])/eig_tot,2),")\n"))
-  cat(paste0("Eigenvalue #4: ",round(fit$eig[4],2)," (% variance: ",round(abs(fit$eig[4])/eig_tot,2),")\n"))
-  cat(paste0("Eigenvalue #5: ",round(fit$eig[5],2)," (% variance: ",round(abs(fit$eig[5])/eig_tot,2),")\n"))
-  cat(paste0("Eigenvalue #6: ",round(fit$eig[6],2)," (% variance: ",round(abs(fit$eig[6])/eig_tot,2),")\n"))
-  
+  for(i in 1:(k-1)) {
+    cat(paste0("Eigenvalue #",i,": ",round(fit$eig[i],2)," (% variance: ",round(abs(fit$eig[i])/eig_tot,2),")\n"))
+  }
+
   # save coordinates of interest in a data.frame; this will have the form
   #   coord     value labels
   # 1     1 -1.876277    ZIB
@@ -128,7 +130,6 @@ embed_posteriors <- function(tax_level="genus", which_measure="Sigma", MAP=FALSE
   # transform these such that they're in the same format as the coordinates data.frame
   df_centroids <- gather(df_centroids, "coord", "value", 2:ncol(df_centroids))
   df_centroids <- df_centroids[,colnames(df)]
-  
   
   if(MAP) {
     saveRDS(df_centroids, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination_centroids.rds")))
@@ -302,8 +303,9 @@ get_other_labels <- function(centroids, tax_level="genus", annotation="group", M
 #' @param axis2 PCoA coordinate to display on y-axis
 #' @param annotation label to assign (e.g. individual)
 #' @param MAP use MAP estimate model output instead of full posterior output
+#' @param show_plot show() plot in addition to rendering it to a file
 #' @details Coordinates parameter is only necessary where we're plotting full host posteriors (i.e. where
-#' annotation="individual").
+#' annotation="host").
 #' @return NULL
 #' @import ggplot2
 #' @export
@@ -314,8 +316,9 @@ get_other_labels <- function(centroids, tax_level="genus", annotation="group", M
 #' centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
 #' labelled_centroids <- get_other_labels(centroids=centroids, tax_level=tax_level, annotation=annotation, MAP=MAP)
 #' plot_axes(coordinates=labelled_centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation, MAP=MAP)
-plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, axis2=2, annotation="individual", MAP=FALSE) {
-  if(annotation == "individual") {
+plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, axis2=2, annotation="host",
+                      MAP=FALSE, show_plot=FALSE) {
+  if(annotation == "host") {
     point_size <- 1
     point_df <- data.frame(ax1=coordinates[coordinates$coord == axis1,]$value,
                           ax2=coordinates[coordinates$coord == axis2,]$value,
@@ -340,6 +343,7 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, a
     }
     img_width <- 4.5
   }
+  p <- p + labs(color = annotation)
   
   if(MAP) {
     save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
@@ -354,6 +358,9 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, a
   if(img_height < 2) {
     img_height <- 2
   }
+  if(show_plot) {
+    show(p)
+  }
   ggsave(file.path(save_dir, plot_save_name), plot=p, dpi=150, scale=1.5, width=img_width, height=img_height, units="in")
 }
 
@@ -364,33 +371,189 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, a
 #' @param axis2 PCoA coordinate to display on y-axis
 #' @param annotation label to assign (e.g. individual)
 #' @param MAP use MAP estimate model output instead of full posterior output
+#' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
 #' @return NULL
 #' @import ggplot2
 #' @export
 #' @examples
-#' plot_ordination(tax_level="genus", axis1=1, axis2=2, annotation="individual", MAP=FALSE)
-plot_ordination <- function(tax_level="genus", which_measure="Sigma", annotation="individual", MAP=FALSE) {
-  if(annotation == "individual") {
+#' plot_ordination(tax_level="genus", axis1=1, axis2=2, annotation="host", MAP=FALSE)
+plot_ordination <- function(tax_level="genus", which_measure="Sigma", annotation="host",
+                            MAP=FALSE, show_plot=FALSE) {
+  if(annotation == "host") {
     if(MAP) {
-      coordinates <- readRDS(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination.rds"))
-      centroids <- readRDS(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+      coordinates <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination.rds"))
+      centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
     } else {
-      coordinates <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination.rds"))
-      centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
+      coordinates <- read_file(file.path("output","plots",tax_level,"Sigma_ordination.rds"))
+      centroids <- read_file(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
     }
-    plot_axes(coordinates=coordinates, centroids=centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation, MAP=FALSE)
-    plot_axes(coordinates=coordinates, centroids=centroids, tax_level=tax_level, axis1=3, axis2=4, annotation=annotation, MAP=FALSE)
+    plot_axes(coordinates=coordinates, centroids=centroids, tax_level=tax_level, axis1=1, axis2=2,
+              annotation=annotation, MAP=MAP, show_plot=show_plot)
+    if(max(centroids$coord) >= 4) {
+      plot_axes(coordinates=coordinates, centroids=centroids, tax_level=tax_level, axis1=3, axis2=4,
+                annotation=annotation, MAP=MAP)
+    }
   } else {
     if(MAP) {
-      centroids <- readRDS(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+      centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
     } else {
-      centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
+      centroids <- read_file(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
     }
     centroids <- get_other_labels(centroids=centroids, tax_level=tax_level, annotation=annotation, MAP=MAP)
-    plot_axes(centroids=centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation, MAP=FALSE)
-    plot_axes(centroids=centroids, tax_level=tax_level, axis1=3, axis2=4, annotation=annotation, MAP=FALSE)
+    plot_axes(centroids=centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation,
+              MAP=MAP, show_plot=show_plot)
+    if(max(centroids$coord) >= 4) {
+      plot_axes(centroids=centroids, tax_level=tax_level, axis1=3, axis2=4, annotation=annotation,
+                MAP=MAP)
+    }
   }
 }
+
+#' Predict from fitted basset model
+#' 
+#' @param X observations in days relative to baseline
+#' @param fit bassetfit object
+#' @param n_samples number of posterior samples to draw
+#' @details Predictions will interpolate from beginning to end of observations.
+#' @return list of prediction input (days relative to baseline) and output (Eta samples)
+#' @import stray
+#' @export
+#' @examples
+#' make_posterior_predictions(X, fit, n_samples=100)
+make_posterior_predictions <- function(X, fit) {
+  X_predict <- t(1:(max(X)))
+  predicted <- predict(fit, X_predict, response="Eta", iter=fit$iter)
+  return(list(X_predict=X_predict, Y_predict=predicted))
+}
+
+#' Plot MAP covariance matrix for designated host
+#' 
+#' @param host host short name (e.g. ACA)
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
+#' @details Output are png files of covariance and correlation matrices.
+#' @return NULL
+#' @import ggplot2
+#' @import driver
+#' @export
+#' @examples
+#' plot_MAP_covariance(host="ZIZ", tax_level="genus")
+plot_MAP_covariance <- function(host, tax_level="genus", show_plot=FALSE) {
+  fit_filename <- file.path("output","model_fits",paste0(tax_level,"_MAP"),paste0(host,"_bassetfit.rds"))
+  if(!file.exists(fit_filename)) {
+    stop(paste0("MAP model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
+  }
+  fit_obj <- read_file(fit_filename)
+  # plot as covariance
+  df <- driver::gather_array(fit_obj$fit$Sigma[,,1], "value", "row", "col")
+  p <- ggplot(df, aes(row, col)) +
+    geom_tile(aes(fill = value), colour = "white") +
+    scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred")
+  if(show_plot) {
+    show(p)
+  }
+  save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
+  ggsave(file.path(save_dir,paste0(host,"_MAP_covariance.png")),
+         plot=p, scale=1.5, width=5, height=4, units="in", dpi=150)
+  # plot as correlation
+  df <- driver::gather_array(cov2cor(fit_obj$fit$Sigma[,,1]), "value", "row", "col")
+  p <- ggplot(df, aes(row, col)) +
+    geom_tile(aes(fill = value), colour = "white") +
+    scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred")
+  if(show_plot) {
+    show(p)
+  }
+  ggsave(file.path(save_dir,paste0(host,"_MAP_correlation.png")),
+         plot=p, scale=1.5, width=5, height=4, units="in", dpi=150)
+}
+
+#' Plot posterior predictive intervals of Eta (denoised ALR abundances) over observed time series for designated host
+#' 
+#' @param host host short name (e.g. ACA)
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param predict_coords ALR coordinates to visualize prediction intervals over
+#' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
+#' @details Output are png files of predicted series intervals.
+#' @return NULL
+#' @import driver
+#' @import dplyr
+#' @import ggplot2
+#' @export
+#' @examples
+#' plot_posterior_predictive(host="ZIB", tax_level="genus", predict_coords=c(1,2,3))
+plot_posterior_predictive <- function(host, tax_level="genus", predict_coords=NULL, show_plot=FALSE) {
+  fit_filename <- file.path("output","model_fits",tax_level,paste0(host,"_bassetfit.rds"))
+  if(!file.exists(fit_filename)) {
+    stop(paste0("Model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
+  }
+  fit_obj <- read_file(fit_filename)
+  if(is.null(predict_coords)) {
+    # choose random coordinates to predict over
+    predict_coords <- sample(1:(fit_obj$fit$D-1))[1:2]
+  }
+
+  # a dumb hack for now; these need to be global
+  SE_sigma <<- fit_obj$kernelparams$SE_sigma
+  SE_rho <<- fit_obj$kernelparams$SE_rho
+  PER_sigma <<- fit_obj$kernelparams$PER_sigma
+  
+  # note: these predictions are in the ALR
+  predict_obj <- make_posterior_predictions(fit_obj$X, fit_obj$fit)
+  
+  for(coord in predict_coords) {
+    observations <- fit_obj$X
+    alr_tidy <- gather_array(fit_obj$alr_ys, "logratio_value", "timepoint", "logratio_coord")
+    
+    # replace timepoints with observation dates for readability
+    map <- data.frame(timepoint=1:length(observations), observation=c(observations))
+    alr_tidy <- merge(alr_tidy, map, by="timepoint")
+    alr_tidy <- alr_tidy[,!(names(alr_tidy) %in% c("timepoint"))]
+    
+    no_samples <- dim(predict_obj$Y_predict)[3]
+    posterior_samples <- gather_array(predict_obj$Y_predict[coord,,], "logratio_value", "observation", "sample_number")
+    
+    # get quantiles
+    post_quantiles <- posterior_samples %>%
+      group_by(observation) %>%
+      summarise(p2.5 = quantile(logratio_value, prob=0.025),
+                p5 = quantile(logratio_value, prob=0.05),
+                p10 = quantile(logratio_value, prob=0.1),
+                p25 = quantile(logratio_value, prob=0.25),
+                p50 = quantile(logratio_value, prob=0.5),
+                mean = mean(logratio_value),
+                p75 = quantile(logratio_value, prob=0.75),
+                p90 = quantile(logratio_value, prob=0.9),
+                p95 = quantile(logratio_value, prob=0.95),
+                p97.5 = quantile(logratio_value, prob=0.975)) %>%
+      ungroup()
+    
+    p <- ggplot(post_quantiles, aes(x=observation, y=mean)) +
+      geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
+      geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
+      geom_line(color="blue") +
+      geom_point(data=alr_tidy[alr_tidy$logratio_coord == coord,], aes(x=observation, y=logratio_value), alpha=0.5) +
+      theme_minimal() +
+      theme(axis.title.x = element_blank(),
+            axis.text.x = element_text(angle=45)) +
+      ylab("LR coord")
+    if(show_plot) {
+      show(p)
+    }
+    save_dir <- check_output_dir(c("output","plots",tax_level))
+    ggsave(file.path(save_dir,paste0(host,"_posterior_predictive_",coord,".png")),
+           plot=p, scale=1.5, width=10, height=2, units="in", dpi=150)
+  }
+}
+
+
+
+
+
+
+
+
+
+
 
 
 

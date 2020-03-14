@@ -13,6 +13,7 @@ fit_GP(
   date_lower_limit = NULL,
   date_upper_limit = NULL,
   alr_ref = NULL,
+  n_samples = 100,
   MAP = FALSE,
   ...
 )
@@ -34,6 +35,8 @@ fit_GP(
 
 \item{alr_ref}{index of reference ALR coordinate}
 
+\item{n_samples}{number of posterior samples to draw}
+
 \item{MAP}{compute MAP estimate only (as single posterior sample)}
 }
 \description{
@@ -43,6 +46,5 @@ Fit a Gaussian process to a single host series using basset
 Fitted model and metadata saved to designated model output directory.
 }
 \examples{
-data <- load_data(tax_level="genus", replicates=TRUE, count_threshold=5, sample_threshold=0.2)
-
+fit_GP(host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
 }

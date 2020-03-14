@@ -10,8 +10,9 @@ plot_axes(
   tax_level = "genus",
   axis1 = 1,
   axis2 = 2,
-  annotation = "individual",
-  MAP = FALSE
+  annotation = "host",
+  MAP = FALSE,
+  show_plot = FALSE
 )
 }
 \arguments{
@@ -28,13 +29,15 @@ plot_axes(
 \item{annotation}{label to assign (e.g. individual)}
 
 \item{MAP}{use MAP estimate model output instead of full posterior output}
+
+\item{show_plot}{show() plot in addition to rendering it to a file}
 }
 \description{
 Plot a pair of principal coordinates
 }
 \details{
 Coordinates parameter is only necessary where we're plotting full host posteriors (i.e. where
-annotation="individual").
+annotation="host").
 }
 \examples{
 tax_level <- "genus"

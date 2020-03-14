@@ -1,4 +1,14 @@
-# periodic kernel; not exposed for now
+#' Periodic kernel
+#' 
+#' @param X covariate (dimension Q x N; i.e., covariates x samples) 
+#' @param sigma scalar parameter 
+#' @param rho scalar bandwidth parameter
+#' @param period period length (in days)
+#' @param jitter small scalar to add to off-diagonal of gram matrix 
+#'   (for numerical underflow issues)
+#' @return Gram Matrix (N x N) (e.g., the Kernel evaluated at 
+#' each pair of points)
+#' @export
 PER <- function(X, sigma=1, rho=1, period=24, jitter=0){
   dist <- as.matrix(dist(t(X)))
   G <- sigma^2 * exp(-2*(sin(pi*dist/period)^2)/(rho^2)) + jitter*diag(ncol(dist))
@@ -46,7 +56,7 @@ get_fitted_model_list <- function(tax_level="genus", MAP=FALSE) {
   } else {
     path <- file.path("output","model_fits",paste0(tax_level,"/",hosts[1],regexpr_str))
   }
-  fit <- readRDS(path)
+  fit <- read_file(path)
   return(list(hosts=hosts,
               pattern_str=pattern_str,
               regexpr_str=regexpr_str,
@@ -72,6 +82,68 @@ default_ALR_prior <- function(D, log_var_scale=1) {
   return(list(upsilon=upsilon, Xi=Xi))
 }
 
+#' Generate empirical estimates for variance components to use in the Gaussian process by
+#' estimating the noise between replicates
+#' 
+#' @param data a phyloseq object
+#' @return list containing variance recommended for SE and PER kernels
+#' @details The SE and PER kernels are apportioned the empirical ALR variance, split 90/10 
+#' between the kernels.
+#' @import phyloseq
+#' @import driver
+#' @export
+#' @examples
+#' params <- default_ALR_prior(D=100, log_var_scale=1)
+#' Sigma <- matrixsampling::rinvwishart(1, params$upsilon, params$Xi)[,,1]
+formalize_parameters <- function(data) {
+  metadata <- sample_data(data)
+  sample_status <- metadata$sample_status # replicate labels
+
+  # pick an intermediate abundance ALR reference taxon
+  counts <- otu_table(data)@.Data
+  alr_ref <- which(order(apply(counts, 2, mean)) == round(ncol(counts)/2))
+
+  # apply the ALR we'll model in  
+  log_ratios <- alr(counts + 0.5, d=alr_ref)
+  unique_sids <- unique(metadata[metadata$sample_status == 2,]$sid)
+  replicate_var <- c()
+  for(usid_idx in 1:length(unique_sids)) {
+    # omit sketchy replicates with super low total counts (< 5K)
+    retain_sids <- metadata$sample_id[metadata$sid == unique_sids[usid_idx]]
+    sample_counts <- otu_table(data)@.Data[metadata$sid == unique_sids[usid_idx],]
+    # omit where total counts are below 5K bounds
+    total_counts <- c(apply(sample_counts, 1, sum))
+    retain_sids <- retain_sids[total_counts >= 5000]
+    if(length(retain_sids) >= 3) {
+      # these are samples (rows) x taxa (columns)
+      lr <- log_ratios[(rownames(log_ratios) %in% retain_sids),]
+      lr <- scale(lr, scale=FALSE)
+      # the mean of each vector's norm should be an estimate of variance between replicates
+      # (just from formula for variance)
+      sample_var <- cov(t(lr))
+      replicate_var <- c(replicate_var, diag(sample_var))
+    }
+  }
+  
+  host_var <- c()
+  for(host in unique(metadata$sname)) {
+    retain_sids <- metadata[metadata$sname == host,]$sample_id
+    if(length(retain_sids) > 3) {
+      lr <- log_ratios[(rownames(log_ratios) %in% retain_sids),]
+      lr <- scale(lr, scale=FALSE)
+      sample_var <- cov(t(lr))
+      host_var <- c(host_var, diag(sample_var))
+    }
+  }
+  
+  mean_total_var <- mean(host_var)
+  mean_rep_var <- mean(replicate_var)
+  
+  # return squared exponential kernel variance as 45% (90%/2) the total empirical ALR variance and the periodic
+  # kernel variance as 5% (10%/2) the total empirical ALR variance
+  return(list(total_variance=mean_total_var, SE_variance=mean_total_var*0.9, PER_variance=mean_total_var*0.1, alr_ref=alr_ref))
+}
+
 #' Fit a Gaussian process to a single host series using basset
 #' 
 #' @param host host short name (e.g. ACA)
@@ -82,23 +154,22 @@ default_ALR_prior <- function(D, log_var_scale=1) {
 #' @param date_lower_limit minimum date to consider (string format: YYYY-MM-DD)
 #' @param date_upper_limit maximum date to consider (string format: YYYY-MM-DD)
 #' @param alr_ref index of reference ALR coordinate
+#' @param n_samples number of posterior samples to draw
 #' @param MAP compute MAP estimate only (as single posterior sample)
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
 #' @import stray
 #' @export
 #' @examples
-#' data <- load_data(tax_level="genus", replicates=TRUE, count_threshold=5, sample_threshold=0.2)
-#' 
+#' fit_GP(host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
 fit_GP <- function(host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90,
-                   date_lower_limit=NULL, date_upper_limit=NULL, alr_ref=NULL, MAP=FALSE,
+                   date_lower_limit=NULL, date_upper_limit=NULL, alr_ref=NULL, n_samples=100, MAP=FALSE,
                    ...) {
-  cat(paste0("Fitting stray::basset with with parameters:\n",
-             "\thost=",host,"\n",
-             "\ttax_level=",tax_level,"\n",
-             "\tSE kernel sigma=",SE_sigma,"\n",
-             "\tPER kernel sigma=",PER_sigma,"\n",
-             "\tdd_se=",SE_days_to_baseline,"\n"))
+  if(MAP) {
+    cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
+  } else {
+    cat(paste0("Fitting stray::basset model to host ",host,"\n"))
+  }
   
   data <- load_data(tax_level=tax_level)
 
@@ -170,7 +241,6 @@ fit_GP <- function(host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_
   alr_means <- colMeans(alr_ys)
   Theta <- function(X) matrix(alr_means, D-1, ncol(X))
   
-  n_samples <- 100
   if(MAP) {
     n_samples <- 0
   }
@@ -191,11 +261,10 @@ fit_GP <- function(host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_
   fit_obj$kernelparams$PER_sigma <- PER_sigma
 
   # save results
-  save_dir <- check_output_dir(c("output","model_fits"))
   if(MAP) {
-    saveRDS(fit_obj, file.path(save_dir,paste0(tax_level,"_MAP"),paste0(host,"_bassetfit.rds")))
+    save_dir <- check_output_dir(c("output","model_fits",paste0(tax_level,"_MAP")))
   } else {
-    saveRDS(fit_obj, file.path(save_dir,tax_level,paste0(host,"_bassetfit.rds")))
+    save_dir <- check_output_dir(c("output","model_fits",tax_level))
   }
-  
+  saveRDS(fit_obj, file.path(save_dir,paste0(host,"_bassetfit.rds")))
 }

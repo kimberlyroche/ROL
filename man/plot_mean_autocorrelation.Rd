@@ -4,9 +4,11 @@
 \alias{plot_mean_autocorrelation}
 \title{Renders autocorrelation plot (without uncertainty estimates)}
 \usage{
-plot_mean_autocorrelation(lagged_ac)
+plot_mean_autocorrelation(lagged_ac, show_plot = FALSE)
 }
 \arguments{
+\item{show_plot}{show() plot in addition to rendering it to a file}
+
 \item{lags}{data.frame of lags and estimated autocorrelation (output of calc_autocorrelation())}
 }
 \description{

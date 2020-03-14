@@ -1,3 +1,17 @@
+#' Load file with existence check
+#' 
+#' @param filename filename (and path)
+#' @return RDS file
+#' @export
+#' @examples
+#' input_data <- read_file("input/filtered_genus_5_20.rds")
+read_file <- function(filename) {
+  if(!file.exists(filename)) {
+    stop(paste0("No such file ",filename,"!\n"))
+  }
+  return(readRDS(filename))
+}
+
 #' Load ABRP 16S data and filter out low abundance taxa
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
@@ -12,30 +26,20 @@
 #' @examples
 #' data <- load_data(tax_level="genus", replicates=TRUE, count_threshold=5, sample_threshold=0.2)
 load_data <- function(tax_level="genus", replicates=TRUE, count_threshold=5, sample_threshold=0.2) {
-  cat(paste0("Filtering ",tax_level,"-level data with count threshold = ",count_threshold," and sample threshold = ",sample_threshold,"\n"))
   if(is.null(tax_level)) {
     tax_level <- "ASV"
   }
   if(tax_level == "ASV") {
+    # no agglomeration
     if(replicates) {
-      filename <- "input/data_w_rep.rds"
+      filename <- file.path("input","data_w_rep.rds")
     } else {
-      filename <- "input/data_wo_rep.rds"
+      filename <- file.path("input","data_wo_rep.rds")
     }
   } else {
-    if(replicates) {
-      filename <- file.path("input",paste0("glom_data_",tax_level,"_reps.rds"))
-    } else {
-      filename <- file.path("input",paste0("glom_data_",tax_level,".rds"))
-    }
-    if(file.exists(filename)) {
-      data <- readRDS(filename)
-    } else {
-      stop(paste0("Input data file ",filename," does not exist!\n"))
-    }
+    # agglomerate
+    agglomerated_data <- agglomerate_data(tax_level=tax_level, replicates=replicates)
   }
-  # agglomerate
-  agglomerated_data <- agglomerate_data(tax_level=tax_level, replicates=replicates)
   # subset to hosts with minimum sample number
   # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
   hosts_over_40 <<- c("DUI", "ECH", "LOG", "VET", "DUX", "LEB", "ACA", "OPH", "THR", "VAI", "VIG", "VOG", "DAS",
@@ -71,23 +75,27 @@ agglomerate_data <- function(tax_level="genus", replicates=TRUE) {
   if(tax_level == "ASV") {
     return(data)
   }
-  out_filename <- file.path("input",paste0("glom_data_",tax_level,"_reps.rds"))
+  if(replicates) {
+    out_filename <- file.path("input",paste0("glom_data_",tax_level,"_reps.rds"))
+  } else {
+    out_filename <- file.path("input",paste0("glom_data_",tax_level,".rds"))
+  }
   if(file.exists(out_filename)) {
     data <- readRDS(out_filename)
     return(data)
   }
   if(replicates) {
-    in_filename <- file.path("input",paste0("glom_data_species_reps.rds"))
+    in_filename <- file.path("input","data_w_rep.rds")
   } else {
-    in_filename <- file.path("input",paste0("glom_data_species_reps.rds"))
+    in_filename <- file.path("input","data_wo_rep.rds")
   }
   if(file.exists(in_filename)) {
     data <- readRDS(in_filename)
   } else {
     stop(paste0("Input data file ",in_filename," does not exist!\n"))
   }
-  agglomerated_data <- tax_glom(data, taxrank=level, NArm=FALSE)
-  saveRDS(agglomerated_data, file=file.path("input",paste0("glom_data_",level,"_reps.rds")))
+  agglomerated_data <- tax_glom(data, taxrank=tax_level, NArm=FALSE)
+  saveRDS(agglomerated_data, file=out_filename)
   return(agglomerated_data)
 }
 
@@ -116,10 +124,11 @@ filter_data <- function(data, tax_level=NULL, count_threshold=5, sample_threshol
     # iterate each individual, failing taxa that fall below the specified thresholds in any individuals
     keep_indices <- rep(TRUE, ntaxa(data))
     for(host in snames) {
+      host <<- host
       subset_data <- subset_samples(data, sname == host)
       subset_count_table <- otu_table(subset_data)@.Data
       # these are the indices to remove!
-      host_keep_indices <- as.vector(apply(subset_count_table, 2, function(x) sum(x >= count_threshold)/phyloseq::nsamples(indiv_data) >= sample_threshold))
+      host_keep_indices <- as.vector(apply(subset_count_table, 2, function(x) sum(x >= count_threshold)/phyloseq::nsamples(subset_data) >= sample_threshold))
       keep_indices <- keep_indices & host_keep_indices
     }
     collapse_indices <- !keep_indices
@@ -128,10 +137,11 @@ filter_data <- function(data, tax_level=NULL, count_threshold=5, sample_threshol
     tt <- tax_table(data)@.Data
     collapse_indices[which(tt[,colnames(tt) == "family"] == "Mitochondria")] <- TRUE
     collapse_indices[which(tt[,colnames(tt) == "order"] == "Chloroplast")] <- TRUE
-    non_bacterial_taxa <- collapse_indices[which(tt[,colnames(tt) == "domain"] != "Bacteria")]
-    if(length(non_bacterial_taxa) > 0) {
-      collapse_indices[non_bacterial_taxa] <- TRUE
-    }
+    # exclude Archaea or not?
+    # non_bacterial_taxa <- collapse_indices[which(tt[,colnames(tt) == "domain"] != "Bacteria")]
+    # if(length(non_bacterial_taxa) > 0) {
+    #   collapse_indices[non_bacterial_taxa] <- TRUE
+    # }
     # perform the collapsing via phyloseq
     merged_data <- merge_taxa(data, which(collapse_indices == TRUE), 1)
     retained_counts <- sum(count_table[,!collapse_indices])
@@ -145,10 +155,10 @@ filter_data <- function(data, tax_level=NULL, count_threshold=5, sample_threshol
     tax_table(merged_data)@.Data[collapsed_into_idx,] <- rep("Collapsed", 7)
     # save results
     saveRDS(merged_data, file=filename)
+    return(merged_data)
   } else {
-    filtered_data <- readRDS(filename)
+    return(read_file(filename))
   }
-  return(filtered_data)
 }
 
 #' Create output directory/ies that may not already exist

@@ -1,0 +1,54 @@
+---
+title: "ROL posterior visualization"
+output: html_document
+author: "Kim Roche"
+date: "3/13/2020"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Calculating distance over posterior samples of Sigma (microbial dynamics)
+
+To visualize the distances between hosts in the space of microbial dynamics, first load the data (if not already loaded), then calculate distances between all pairs of posterior samples. The `calc_posterior_distances` function checks the model output folder at the given taxonomic level and loads all fitted models it finds.
+
+```{r}
+library(ROL)
+
+tax_level <- "family"
+calc_posterior_distances(tax_level=tax_level, which_measure="Sigma", MAP=FALSE)
+```
+
+## Visualizing the distance between hosts in the space of dynamics
+
+Next, use MDS to embed/ordinate hosts' posterior samples according to these distances.
+
+```{r}
+embed_posteriors(tax_level=tax_level, which_measure="Sigma", MAP=FALSE)
+```
+
+Plot the ordination, labeling hosts.
+
+```{r}
+plot_ordination(tax_level=tax_level, which_measure="Sigma", annotation="host", MAP=FALSE, show_plot=TRUE)
+```
+
+To label other features, its easier to visualize distances over MAP estimates of host posteriors (where each host is collapsed to a single data point). First, calculate the distances over MAP estimates. Then, embed these.
+
+```{r}
+calc_posterior_distances(tax_level=tax_level, which_measure="Sigma", MAP=TRUE)
+embed_posteriors(tax_level=tax_level, which_measure="Sigma", MAP=TRUE)
+```
+
+Visualize the ordination labeled for social group.
+
+```{r}
+plot_ordination(tax_level=tax_level, which_measure="Sigma", annotation="group", MAP=TRUE, show_plot=TRUE)
+```
+
+And by sample number.
+
+```{r}
+plot_ordination(tax_level=tax_level, which_measure="Sigma", annotation="samplenumber", MAP=TRUE, show_plot=TRUE)
+```

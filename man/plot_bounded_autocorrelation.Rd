@@ -4,9 +4,11 @@
 \alias{plot_bounded_autocorrelation}
 \title{Renders autocorrelation plot with uncertainty estimates}
 \usage{
-plot_bounded_autocorrelation(lagged_ac)
+plot_bounded_autocorrelation(lagged_ac, show_plot = FALSE)
 }
 \arguments{
+\item{show_plot}{show() plot in addition to rendering it to a file}
+
 \item{lags}{data.frame of lags and estimated autocorrelation (output of calc_autocorrelation())}
 }
 \description{
