@@ -1,4 +1,4 @@
-#' Calculate Riemannian distances between all posterior samples
+#' Calculate distances between all posterior samples of either Sigma or Lambda
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param which_measure estimated object to embed, either Lambda or Sigma
@@ -7,6 +7,7 @@
 #' a list containing distance matrix and labels of each row or column (by host).
 #' @return NULL
 #' @import driver
+#' @import stray
 #' @export
 #' @examples
 #' calc_posterior_distances(tax_level="genus", which_measure="Sigma", MAP=FALSE)
@@ -27,7 +28,7 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
   # insert samples (column-wise) into samples matrix
   host_labels <- c()
   for(i in 1:n_hosts) {
-    fit <- fix_MAP_dims(read_file(model_list$model_list[i])$fit)
+    fit <- read_file(model_list$model_list[i])$fit
     # convert to ILR; this can be removed
     V <- driver::create_default_ilr_base(ncategories(fit))
     fit.ilr <- to_ilr(fit, V)
@@ -57,6 +58,60 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
     distance_mat <- as.matrix(dist(all_samples))
   }
   saveRDS(list(host_labels=host_labels, distance_mat=distance_mat), file=dist_filename)
+}
+
+#' Calculate Riemannian distances between one sample and all others; this is to allow extremely
+#' large distance matrices to be calculated in blocks by independent parallel jobs on the
+#' cluster
+#' 
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param sample_range posterior sample indices to consider (e.g. c(1,10) calculates distances between all individual
+#' posterior samples 1 through 10)
+#' @details Distance matrix between posterior samples saved to designated output directory. Saves
+#' a list containing distance matrix and labels of each row or column (by host).
+#' @return NULL
+#' @import driver
+#' @import stray
+#' @export
+#' @examples
+#' calc_posterior_distances_ranged(tax_level="genus", sample_range=c(1,10))
+calc_posterior_distance_row <- function(tax_level="genus", sample_idx=1) {
+  # grab all fitted models
+  model_list <- get_fitted_model_list(tax_level=tax_level, MAP=FALSE)
+  P <- model_list$D - 1 # ALR
+  n_samples <- model_list$n_samples
+  if(sample_idx > n_samples) {
+    sample_idx <- 1
+  }
+  n_hosts <- length(model_list$hosts)
+  # initialize samples matrix
+  # for reference samples, we just want to consider sample indices > this index since
+  # we can copy the upper triangular part of the distance matrix into the bottom triangle
+  # and save work
+  reference_samples <- matrix(NA, P, P*n_hosts)
+  all_samples <- matrix(NA, P, P*n_samples*n_hosts)
+  # insert samples (column-wise) into samples matrix
+  for(i in 1:n_hosts) {
+    fit <- read_file(model_list$model_list[i])$fit
+    # convert to ILR; this can be removed
+    V <- driver::create_default_ilr_base(ncategories(fit))
+    fit.ilr <- to_ilr(fit, V)
+    Sigma <- fit.ilr$Sigma
+    Sigma_ref <- Sigma[,,sample_idx]
+    Sigma_full <- Sigma[,,1:n_samples]
+    offset1 <- (i-1)*P + 1
+    offset2 <- offset1 + P - 1
+    reference_samples[,offset1:offset2] <- Sigma_ref
+    for(j in 1:n_samples) {
+      offset1 <- (j-1)*n_hosts*P + ((i-1)*P) + 1
+      offset2 <- offset1 + P - 1
+      all_samples[,offset1:offset2] <- Sigma_full[,,j]
+    }
+  }
+  save_dir <- check_output_dir(c("output"))
+  dist_filename <- file.path(save_dir,paste0("Sigma_distance_",tax_level,"_",sample_idx,".rds"))
+  distance_mat <- Riemann_dist_sets(reference_samples, all_samples, n_hosts, 1, n_samples)
+  saveRDS(list(host_labels=model_list$hosts, distance_mat=distance_mat), file=dist_filename)
 }
 
 #' Embeds posterior samples using MDS and a pre-calculated distance matrix

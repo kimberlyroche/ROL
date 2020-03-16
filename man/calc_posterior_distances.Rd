@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_analyses.R
 \name{calc_posterior_distances}
 \alias{calc_posterior_distances}
-\title{Calculate Riemannian distances between all posterior samples}
+\title{Calculate distances between all posterior samples of either Sigma or Lambda}
 \usage{
 calc_posterior_distances(
   tax_level = "genus",
@@ -18,7 +18,7 @@ calc_posterior_distances(
 \item{MAP}{use MAP estimate model output instead of full posterior output}
 }
 \description{
-Calculate Riemannian distances between all posterior samples
+Calculate distances between all posterior samples of either Sigma or Lambda
 }
 \details{
 Distance matrix between posterior samples saved to designated output directory. Saves

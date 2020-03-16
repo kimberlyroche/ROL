@@ -7,15 +7,30 @@
 using namespace Rcpp;
 
 // Riemann_dist_samples
-Eigen::MatrixXd Riemann_dist_samples(Eigen::MatrixXd samples, int n_indiv, int n_samples_per);
-RcppExport SEXP _ROL_Riemann_dist_samples(SEXP samplesSEXP, SEXP n_indivSEXP, SEXP n_samples_perSEXP) {
+Eigen::MatrixXd Riemann_dist_samples(Eigen::MatrixXd samples, int n_hosts, int n_samples_per);
+RcppExport SEXP _ROL_Riemann_dist_samples(SEXP samplesSEXP, SEXP n_hostsSEXP, SEXP n_samples_perSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Eigen::MatrixXd >::type samples(samplesSEXP);
-    Rcpp::traits::input_parameter< int >::type n_indiv(n_indivSEXP);
+    Rcpp::traits::input_parameter< int >::type n_hosts(n_hostsSEXP);
     Rcpp::traits::input_parameter< int >::type n_samples_per(n_samples_perSEXP);
-    rcpp_result_gen = Rcpp::wrap(Riemann_dist_samples(samples, n_indiv, n_samples_per));
+    rcpp_result_gen = Rcpp::wrap(Riemann_dist_samples(samples, n_hosts, n_samples_per));
+    return rcpp_result_gen;
+END_RCPP
+}
+// Riemann_dist_sets
+Eigen::MatrixXd Riemann_dist_sets(Eigen::MatrixXd A, Eigen::MatrixXd B, int n_hosts, int host_samples_A, int host_samples_B);
+RcppExport SEXP _ROL_Riemann_dist_sets(SEXP ASEXP, SEXP BSEXP, SEXP n_hostsSEXP, SEXP host_samples_ASEXP, SEXP host_samples_BSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Eigen::MatrixXd >::type A(ASEXP);
+    Rcpp::traits::input_parameter< Eigen::MatrixXd >::type B(BSEXP);
+    Rcpp::traits::input_parameter< int >::type n_hosts(n_hostsSEXP);
+    Rcpp::traits::input_parameter< int >::type host_samples_A(host_samples_ASEXP);
+    Rcpp::traits::input_parameter< int >::type host_samples_B(host_samples_BSEXP);
+    rcpp_result_gen = Rcpp::wrap(Riemann_dist_sets(A, B, n_hosts, host_samples_A, host_samples_B));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -34,6 +49,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_ROL_Riemann_dist_samples", (DL_FUNC) &_ROL_Riemann_dist_samples, 3},
+    {"_ROL_Riemann_dist_sets", (DL_FUNC) &_ROL_Riemann_dist_sets, 5},
     {"_ROL_Riemann_dist_pair", (DL_FUNC) &_ROL_Riemann_dist_pair, 2},
     {NULL, NULL, 0}
 };

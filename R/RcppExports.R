@@ -5,13 +5,28 @@
 #' horizontally
 #'
 #' @param samples posterior samples matrix, arranged by host and concatenated across columns
-#' @param n_indiv number of hosts
+#' @param n_hosts number of hosts
 #' @param n_samples_per number of samples per host
 #' @details Dimensions of the samples matrix are D rows x DN columns where D = no. of features
 #' and N = no. of samples
 #' @return distance
-Riemann_dist_samples <- function(samples, n_indiv, n_samples_per) {
-    .Call('_ROL_Riemann_dist_samples', PACKAGE = 'ROL', samples, n_indiv, n_samples_per)
+Riemann_dist_samples <- function(samples, n_hosts, n_samples_per) {
+    .Call('_ROL_Riemann_dist_samples', PACKAGE = 'ROL', samples, n_hosts, n_samples_per)
+}
+
+#' Calculate distances between all pairs of samples from two sample sets
+#'
+#' @param A posterior sample matrix 1, ordered by sample number, the host concatenated across columns
+#' @param B posterior sample matrix 2, ordered by sample number, the host concatenated across columns
+#' @param n_hosts number of hosts in set A and B (must be equal)
+#' @param host_samples_A number of samples per host in set A
+#' @param host_samples_B number of samples per host in set B
+#' @details Dimensions of the samples matrix are D rows x DN columns where D = no. of features
+#' and N = no. of samples. For two hosts "DUD" and "OMO" with 3 samples each, these are arranged
+#' column-wise in the matrix as (DUD 1, OMO 1, DUD 2, OMO 2, DUD 3, OMO 3).
+#' @return distance
+Riemann_dist_sets <- function(A, B, n_hosts, host_samples_A, host_samples_B) {
+    .Call('_ROL_Riemann_dist_sets', PACKAGE = 'ROL', A, B, n_hosts, host_samples_A, host_samples_B)
 }
 
 #' Calculate distances between positive-definite covariance matrices

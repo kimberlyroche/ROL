@@ -5,12 +5,12 @@
 \title{Calculate distances between a matrix of positive-definite covariance matrices concatenated
 horizontally}
 \usage{
-Riemann_dist_samples(samples, n_indiv, n_samples_per)
+Riemann_dist_samples(samples, n_hosts, n_samples_per)
 }
 \arguments{
 \item{samples}{posterior samples matrix, arranged by host and concatenated across columns}
 
-\item{n_indiv}{number of hosts}
+\item{n_hosts}{number of hosts}
 
 \item{n_samples_per}{number of samples per host}
 }
