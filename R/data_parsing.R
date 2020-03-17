@@ -36,6 +36,7 @@ load_data <- function(tax_level="genus", replicates=TRUE, count_threshold=5, sam
     } else {
       filename <- file.path("input","data_wo_rep.rds")
     }
+    agglomerated_data <- readRDS(filename)
   } else {
     # agglomerate
     agglomerated_data <- agglomerate_data(tax_level=tax_level, replicates=replicates)

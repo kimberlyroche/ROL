@@ -65,16 +65,14 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
 #' cluster
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
-#' @param sample_range posterior sample indices to consider (e.g. c(1,10) calculates distances between all individual
-#' posterior samples 1 through 10)
-#' @details Distance matrix between posterior samples saved to designated output directory. Saves
-#' a list containing distance matrix and labels of each row or column (by host).
+#' @param sample_idx the posterior sample to be considered against all others
+#' @details Output is saved to a file.
 #' @return NULL
 #' @import driver
 #' @import stray
 #' @export
 #' @examples
-#' calc_posterior_distances_ranged(tax_level="genus", sample_range=c(1,10))
+#' calc_posterior_distances_row(tax_level="genus", sample_idx=1)
 calc_posterior_distance_row <- function(tax_level="genus", sample_idx=1) {
   # grab all fitted models
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=FALSE)
@@ -325,7 +323,7 @@ get_other_labels <- function(centroids, tax_level="genus", annotation="group", M
     labels <- as.factor(labels)
   }
   if(annotation == "alphadiv") {
-    for(host in host) {
+    for(host in hosts) {
       host <<- host
       host_data <- subset_samples(data, sname == host)
       counts <- otu_table(host_data)@.Data # samples x taxa
