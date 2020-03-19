@@ -250,13 +250,20 @@ get_universal_interactions <- function(tax_level="genus", threshold=0.4, show_pl
   
   # select compelling interactions by high median absolute correlation
   colMedians <- apply(interactions, 2, function(x) median(x))
+
+  # 2020/03/18 -- ignore threshold; take the top and bottom strongest 50 interactions
+  ranks <- order(colMedians)
   
   criteria <- list(negative=-threshold, positive=threshold)
   for(criterion in names(criteria)) {
     if(criteria[[criterion]] > 0) {
-      interesting_pairs <- which(colMedians >= criteria[[criterion]])
+      # positive interactions
+      # interesting_pairs <- which(colMedians >= criteria[[criterion]])
+      interesting_pairs <- ranks[(length(ranks)-100+1):length(ranks)]
     } else {
-      interesting_pairs <- which(colMedians <= criteria[[criterion]])
+      # negative interactions
+      # interesting_pairs <- which(colMedians <= criteria[[criterion]])
+      interesting_pairs <- ranks[1:100]
     }
     
     if(length(interesting_pairs) > 0) {
@@ -268,8 +275,13 @@ get_universal_interactions <- function(tax_level="genus", threshold=0.4, show_pl
       for(p_idx in interesting_pairs) {
         interesting_pair <- labels[p_idx]
         microbe_pair <- as.numeric(strsplit(interesting_pair, "_")[[1]])
-        label.1 <- tax_labels[microbe_pair[1]]
-        label.2 <- tax_labels[microbe_pair[2]]
+        if(tax_level == "ASV") {
+          label.1 <- paste0("Microbe #",microbe_pair[1]," in ",tax_labels[microbe_pair[1]])
+          label.2 <- paste0("Microbe #",microbe_pair[2]," in ",tax_labels[microbe_pair[2]])
+        } else {
+          label.1 <- tax_labels[microbe_pair[1]]
+          label.2 <- tax_labels[microbe_pair[2]]
+        }
         df <- rbind(df, data.frame(x=label.1, y=label.2, sign=sign(colMedians[p_idx]),
                                    value=2*abs(colMedians[p_idx])))
         cat(paste0("Interesting pair (",p_idx,"): ",label.1,", ",label.2,"\n"))
