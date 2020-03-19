@@ -145,11 +145,11 @@ filter_data <- function(data, tax_level=NULL, count_threshold=5, sample_threshol
     # }
     # perform the collapsing via phyloseq
     merged_data <- merge_taxa(data, which(collapse_indices == TRUE), 1)
-    retained_counts <- sum(count_table[,!collapse_indices])
+    retained_counts <- count_table[,!collapse_indices]
     cat(paste0("Retaining ",sum(collapse_indices == FALSE)," / ",ntaxa(data)," taxa\n"))
-    cat("Collapsed ",round((total_counts-retained_counts)/total_counts, 3)*100,"% of total counts\n")
+    cat("Collapsed ",round((total_counts-sum(retained_counts))/total_counts, 3)*100,"% of total counts\n")
     # calculate proportion zeros
-    cat("Percent zeros is ",round(sum(count_table == 0)/(nrow(count_table)*ncol(count_table)), 3)*100,"%\n")
+    cat("Percent zeros is ",round(sum(retained_counts == 0)/(nrow(retained_counts)*ncol(retained_counts)), 3)*100,"%\n")
     # collapse all into first index; we'll label this domain : species "Collapsed"
     collapsed_into_idx <- which(collapse_indices == TRUE)[1]
     cat(paste0("Other category is index ",collapsed_into_idx,"\n"))

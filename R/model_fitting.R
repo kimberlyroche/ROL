@@ -146,6 +146,7 @@ formalize_parameters <- function(data) {
 
 #' Fit a Gaussian process to a single host series using basset
 #' 
+#' @param data a phyloseq object
 #' @param host host short name (e.g. ACA)
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param SE_sigma squared exponential kernel variance scale
@@ -161,8 +162,9 @@ formalize_parameters <- function(data) {
 #' @import stray
 #' @export
 #' @examples
-#' fit_GP(host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
-fit_GP <- function(host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90,
+#' data <- load_data(tax_level="genus")
+#' fit_GP(data, host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
+fit_GP <- function(data, host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90,
                    date_lower_limit=NULL, date_upper_limit=NULL, alr_ref=NULL, n_samples=100, MAP=FALSE,
                    ...) {
   if(MAP) {
@@ -171,8 +173,6 @@ fit_GP <- function(host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_
     cat(paste0("Fitting stray::basset model to host ",host,"\n"))
   }
   
-  data <- load_data(tax_level=tax_level)
-
   # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
   host <<- host
   host_data <- subset_samples(data, sname==host)
