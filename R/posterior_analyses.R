@@ -417,11 +417,10 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, a
   ggsave(file.path(save_dir, plot_save_name), plot=p, dpi=150, scale=1.5, width=img_width, height=img_height, units="in")
 }
 
-#' Plot a pair of principal coordinates
+#' Plot first several principle coordinates of ordination
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param which_measure estimated object to visualize, either Lambda or Sigma
-#' @param axis2 PCoA coordinate to display on y-axis
 #' @param annotation label to assign (e.g. individual)
 #' @param MAP use MAP estimate model output instead of full posterior output
 #' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
@@ -429,7 +428,7 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, a
 #' @import ggplot2
 #' @export
 #' @examples
-#' plot_ordination(tax_level="genus", axis1=1, axis2=2, annotation="host", MAP=FALSE)
+#' plot_ordination(tax_level="genus", which_measure="Sigma", annotation="host", MAP=FALSE)
 plot_ordination <- function(tax_level="genus", which_measure="Sigma", annotation="host",
                             MAP=FALSE, show_plot=FALSE) {
   if(annotation == "host") {
@@ -457,6 +456,14 @@ plot_ordination <- function(tax_level="genus", which_measure="Sigma", annotation
               MAP=MAP, show_plot=show_plot)
     if(max(centroids$coord) >= 4) {
       plot_axes(centroids=centroids, tax_level=tax_level, axis1=3, axis2=4, annotation=annotation,
+                MAP=MAP)
+    }
+    if(max(centroids$coord) >= 6) {
+      plot_axes(centroids=centroids, tax_level=tax_level, axis1=5, axis2=6, annotation=annotation,
+                MAP=MAP)
+    }
+    if(max(centroids$coord) >= 8) {
+      plot_axes(centroids=centroids, tax_level=tax_level, axis1=7, axis2=8, annotation=annotation,
                 MAP=MAP)
     }
   }
