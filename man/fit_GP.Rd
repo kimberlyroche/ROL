@@ -5,6 +5,7 @@
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
 fit_GP(
+  data,
   host,
   tax_level = "genus",
   SE_sigma = 1,
@@ -19,6 +20,8 @@ fit_GP(
 )
 }
 \arguments{
+\item{data}{a phyloseq object}
+
 \item{host}{host short name (e.g. ACA)}
 
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -46,5 +49,6 @@ Fit a Gaussian process to a single host series using basset
 Fitted model and metadata saved to designated model output directory.
 }
 \examples{
-fit_GP(host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
+data <- load_data(tax_level="genus")
+fit_GP(data, host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
 }

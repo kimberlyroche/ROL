@@ -11,8 +11,7 @@ calc_posterior_distance_row(tax_level = "genus", sample_idx = 1)
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
 
-\item{sample_range}{posterior sample indices to consider (e.g. c(1,10) calculates distances between all individual
-posterior samples 1 through 10)}
+\item{sample_idx}{the posterior sample to be considered against all others}
 }
 \description{
 Calculate Riemannian distances between one sample and all others; this is to allow extremely
@@ -20,9 +19,8 @@ large distance matrices to be calculated in blocks by independent parallel jobs 
 cluster
 }
 \details{
-Distance matrix between posterior samples saved to designated output directory. Saves
-a list containing distance matrix and labels of each row or column (by host).
+Output is saved to a file.
 }
 \examples{
-calc_posterior_distances_ranged(tax_level="genus", sample_range=c(1,10))
+calc_posterior_distances_row(tax_level="genus", sample_idx=1)
 }

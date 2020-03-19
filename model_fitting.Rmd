@@ -41,10 +41,10 @@ hosts <- unique(sample_data(data)$sname)
 
 for(host in hosts) {
   # fit full model
-  fit_GP(host=host, tax_level=tax_level, SE_sigma=params$SE_variance, PER_sigma=params$PER_variance,
+  fit_GP(data, host=host, tax_level=tax_level, SE_sigma=params$SE_variance, PER_sigma=params$PER_variance,
          SE_days_to_baseline=90, alr_ref=params$alr_ref, n_samples=10)
   # fit MAP model
-  fit_GP(host=host, tax_level=tax_level, SE_sigma=params$SE_variance, PER_sigma=params$PER_variance,
+  fit_GP(data, host=host, tax_level=tax_level, SE_sigma=params$SE_variance, PER_sigma=params$PER_variance,
          SE_days_to_baseline=90, alr_ref=params$alr_ref, MAP=TRUE)
   
 }

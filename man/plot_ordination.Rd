@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_analyses.R
 \name{plot_ordination}
 \alias{plot_ordination}
-\title{Plot a pair of principal coordinates}
+\title{Plot first several principle coordinates of ordination}
 \usage{
 plot_ordination(
   tax_level = "genus",
@@ -22,12 +22,10 @@ plot_ordination(
 \item{MAP}{use MAP estimate model output instead of full posterior output}
 
 \item{show_plot}{show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)}
-
-\item{axis2}{PCoA coordinate to display on y-axis}
 }
 \description{
-Plot a pair of principal coordinates
+Plot first several principle coordinates of ordination
 }
 \examples{
-plot_ordination(tax_level="genus", axis1=1, axis2=2, annotation="host", MAP=FALSE)
+plot_ordination(tax_level="genus", which_measure="Sigma", annotation="host", MAP=FALSE)
 }
