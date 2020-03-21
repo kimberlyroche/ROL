@@ -77,10 +77,19 @@ assign_concise_taxonomy <- function(tax_level="genus", logratio="alr", other_cat
         labels[i] <- paste0("CLR(Other)")
       }
     } else {
+      deep_label <- get_deepest_assignment(taxonomy[i,])
       if(logratio == "alr") {
-        labels[i] <- paste0("ALR(",get_deepest_assignment(taxonomy[i,]),")/ALR(",alr.ref,")")
+        if(is.null(deep_label)) {
+          labels[i] <- paste0("ALR(unresolved)/ALR(",alr.ref,")")
+        } else {
+          labels[i] <- paste0("ALR(",get_deepest_assignment(taxonomy[i,]),")/ALR(",alr.ref,")")
+        }
       } else {
-        labels[i] <- paste0("CLR(",get_deepest_assignment(taxonomy[i,]),")")
+        if(is.null(deep_label)) {
+          labels[i] <- paste0("CLR(unresolved)")
+        } else {
+          labels[i] <- paste0("CLR(",get_deepest_assignment(taxonomy[i,]),")")
+        }
       }
     }
   }
@@ -233,7 +242,6 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' Identify and plot "universal" interactions at the designated taxonomic level
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
-#' @param threshold correlation threshold for "interesting" interaction pairs
 #' @param show_plot show() plot in addition to rendering it to a file
 #' @details Correlations are evaluated in the CLR. A threshold of 0.4 will identify pairs of 
 #' taxa with median correlation of > 0.4 or < -0.4. Pairs are rendered as bigraphs.
@@ -241,8 +249,8 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' @import ggplot2
 #' @export
 #' @examples
-#' get_universal_interactions(tax_level="genus", threshold=0.4)
-get_universal_interactions <- function(tax_level="genus", threshold=0.4, show_plot=FALSE) {
+#' get_universal_interactions(tax_level="genus")
+get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
   pairs_obj <- get_pairwise_correlations(tax_level=tax_level, logratio="clr")
   labels <- pairs_obj$labels
@@ -251,19 +259,21 @@ get_universal_interactions <- function(tax_level="genus", threshold=0.4, show_pl
   # select compelling interactions by high median absolute correlation
   colMedians <- apply(interactions, 2, function(x) median(x))
 
-  # 2020/03/18 -- ignore threshold; take the top and bottom strongest 50 interactions
+  # order the interactions by median (large - to large +); we'll pull out the strongest
   ranks <- order(colMedians)
   
-  criteria <- list(negative=-threshold, positive=threshold)
-  for(criterion in names(criteria)) {
-    if(criteria[[criterion]] > 0) {
+  criteria <- c("negative", "positive")
+  for(criterion in criteria) {
+    # take the top and bottom 10% of interactions
+    top_k <- min(round(0.1*length(ranks)), 100)
+    if(criterion == "positive") {
       # positive interactions
-      # interesting_pairs <- which(colMedians >= criteria[[criterion]])
-      interesting_pairs <- ranks[(length(ranks)-100+1):length(ranks)]
+      interesting_pairs <- ranks[(length(ranks)-top_k+1):length(ranks)]
+      cat(paste0("Evaluating top ",top_k," positive interactions...\n"))
     } else {
       # negative interactions
-      # interesting_pairs <- which(colMedians <= criteria[[criterion]])
-      interesting_pairs <- ranks[1:100]
+      interesting_pairs <- ranks[1:top_k]
+      cat(paste0("Evaluating top ",top_k," negative interactions...\n"))
     }
     
     if(length(interesting_pairs) > 0) {

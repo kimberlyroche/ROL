@@ -4,16 +4,10 @@
 \alias{get_universal_interactions}
 \title{Identify and plot "universal" interactions at the designated taxonomic level}
 \usage{
-get_universal_interactions(
-  tax_level = "genus",
-  threshold = 0.4,
-  show_plot = FALSE
-)
+get_universal_interactions(tax_level = "genus", show_plot = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
-
-\item{threshold}{correlation threshold for "interesting" interaction pairs}
 
 \item{show_plot}{show() plot in addition to rendering it to a file}
 }
@@ -25,5 +19,5 @@ Correlations are evaluated in the CLR. A threshold of 0.4 will identify pairs of
 taxa with median correlation of > 0.4 or < -0.4. Pairs are rendered as bigraphs.
 }
 \examples{
-get_universal_interactions(tax_level="genus", threshold=0.4)
+get_universal_interactions(tax_level="genus")
 }

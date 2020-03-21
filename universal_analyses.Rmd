@@ -33,10 +33,10 @@ We can subset to a single log relative abundance and *its* interactions with oth
 plot_interaction_heatmap(tax_level=tax_level, logratio=logratio, Sigmas=Sigmas, taxon_idx=1, show_plot=TRUE)
 ```
 
-Lastly, filter all interactions for those that are "universal," i.e. that have the same correlation sign in a minimum proportion of hosts specified by `threshold`. For demonstration purposes, we'll set this bar low, via `threshold=0.4`.
+Lastly, rank all interactions by their "universality," i.e. the degree to which they have a large median correlation across.
 
 ```{r}
-get_universal_interactions(tax_level=tax_level, threshold=0.4, show_plot=TRUE)
+get_universal_interactions(tax_level=tax_level, show_plot=TRUE)
 ```
 
 Note: These are always evaluated using CLR correlations.

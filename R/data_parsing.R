@@ -16,6 +16,7 @@ read_file <- function(filename) {
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param replicates include replicates
+#' @param host_sample_min minimum sample number for host inclusion in the filtered data set
 #' @param count_threshold minimum count at which a taxon must be observed
 #' @param sample_threshold minimum proportion of samples within each host at which a taxon must be observed at the level specified by count_threshold
 #' @details Together count_threshold and sample_threshold specify a minimum representation for a taxon.
@@ -24,13 +25,18 @@ read_file <- function(filename) {
 #' @import phyloseq
 #' @export
 #' @examples
-#' data <- load_data(tax_level="genus", replicates=TRUE, count_threshold=5, sample_threshold=0.2)
-load_data <- function(tax_level="genus", replicates=TRUE, count_threshold=5, sample_threshold=0.2) {
+#' data <- load_data(tax_level="genus", replicates=TRUE, host_sample_min=40, count_threshold=5, sample_threshold=0.2)
+load_data <- function(tax_level="genus", replicates=TRUE, host_sample_min=40, count_threshold=5, sample_threshold=0.2) {
   if(is.null(tax_level)) {
     tax_level <- "ASV"
   }
   if(tax_level == "ASV") {
-    # no agglomeration
+    # check to see if a pre-filtered version of this is available
+    filename <- file.path("input", paste0("filtered_",tax_level,"_",count_threshold,"_",round(sample_threshold*100),".rds"))
+    if(file.exists(filename)) {
+      return(readRDS(filename))
+    }
+    # continue with no agglomeration
     if(replicates) {
       filename <- file.path("input","data_w_rep.rds")
     } else {
@@ -42,21 +48,10 @@ load_data <- function(tax_level="genus", replicates=TRUE, count_threshold=5, sam
     agglomerated_data <- agglomerate_data(tax_level=tax_level, replicates=replicates)
   }
   # subset to hosts with minimum sample number
+  sname_occurrences <- sample_data(agglomerated_data)$sname
   # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
-  hosts_over_40 <<- c("DUI", "ECH", "LOG", "VET", "DUX", "LEB", "ACA", "OPH", "THR", "VAI", "VIG", "VOG", "DAS",
-                     "CAI", "COB", "PEB", "OXY", "WRI", "NAP", "SEB", "COO", "LAD", "LOB", "WAD", "GAB", "LIW",
-                     "VIN", "TAL", "VEX", "VEI", "ALE", "MBE", "WHE", "WYN", "LOL", "HOL", "NOB", "VOT", "LYE",
-                     "HON", "DAG", "DUN", "OTI", "LUI", "OFR", "LAZ", "ONY", "VEL", "ELV", "FAX", "ORI", "EAG",
-                     "ODE", "NIK", "VAP", "WIP", "LOU", "NOO", "EVA", "EXO", "KOR", "NAR", "VOW", "HYM", "PAI",
-                     "LAS", "VIO", "WEA", "DOU", "LIZ", "WAS", "ZIB", "QUA", "WEN", "WOB", "WOL", "HOK", "LAV",
-                     "OBI", "POK", "SOR", "KOL", "ISR", "OMO", "SCE", "AFR", "MON", "NIN", "VEB", "ADD", "VOY",
-                     "DRO", "LOC", "OJU", "OST", "DUB", "LEI", "VAA", "GAN", "HUM", "LUN", "VIV", "BUC", "LAN",
-                     "LOX", "HAS", "SNA", "WUA", "YAI", "EGO", "ABB", "CRU", "LOF", "WAB", "ZIZ", "COD", "LEX",
-                     "RAJ", "KIW", "LAO", "LIB", "NJU", "OBR", "OCE", "POW", "IAG", "MLO", "GYP", "LIT", "OPA",
-                     "COT", "DIP", "LAW", "RHO", "VOR", "AMA", "AYU", "DUR", "FLA", "OAS", "VIB", "CAB", "CHE",
-                     "HAV", "LUP", "MIC", "YOB", "PIT", "YAN", "LOZ", "TOG", "BEA", "DUD", "GOM", "HIB", "WAG",
-                     "ETO", "KEL", "NUT", "WES", "IDI", "ISO", "PRU", "YOG", "ZAI")
-  subsetted_data <- subset_samples(agglomerated_data, sname %in% hosts_over_40)
+  hosts_over_threshold <<- names(which(table(sname_occurrences) > host_sample_min))
+  subsetted_data <- subset_samples(agglomerated_data, sname %in% hosts_over_threshold)
   # filter
   filtered_data <- filter_data(subsetted_data, tax_level=tax_level, count_threshold=count_threshold, sample_threshold=sample_threshold)
   return(filtered_data)
