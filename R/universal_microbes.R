@@ -254,7 +254,7 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' @export
 #' @examples
 #' get_universal_interactions(tax_level="genus")
-get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
+get_universal_interactions <- function(tax_level="genus", show_plot=FALSE, order_by="abundance") {
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
   pairs_obj <- get_pairwise_correlations(tax_level=tax_level, logratio="clr")
   labels <- pairs_obj$labels
@@ -268,8 +268,16 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
 
   # get average abundance; we'll order interactions (x vs. y) by this
   data <- load_data(tax_level=tax_level)
-  avg_abundance <- colMeans(otu_table(data)@.Data)
-  names(avg_abundance) <- NULL
+  if(order_by == "abundance") {
+    avg_abundance <- colMeans(otu_table(data)@.Data)
+    names(avg_abundance) <- NULL
+  } else {
+    tax <- tax_table(data)
+    rownames(tax) <- NULL
+    colnames(tax) <- NULL
+    tax[is.na(tax)] <- "zzz"
+    tax_names <- apply(tax, 1, function(x) paste(x, collapse="/"))
+  }
 
   criteria <- c("negative", "positive")
   for(criterion in criteria) {
@@ -305,21 +313,35 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
         cat(paste0("Interesting pair (",p_idx,"): ",label.1,", ",label.2,"\n"))
       }
 
-      # get order of integer labels and text labels according to average abundance
-      # for x
       x_nodes <- unique(df$x_idx)
       x_labels <- unique(df$x)
-      x_ab <- avg_abundance[x_nodes]
-      ab_order <- order(x_ab, decreasing=FALSE)
-      x_ordered <- x_nodes[ab_order]
-      x_labels_ordered <- x_labels[ab_order]
-      # for y
       y_nodes <- unique(df$y_idx)
       y_labels <- unique(df$y)
-      y_ab <- avg_abundance[y_nodes]
-      ab_order <- order(y_ab, decreasing=FALSE)
-      y_ordered <- y_nodes[ab_order]
-      y_labels_ordered <- y_labels[ab_order]
+      if(order_by == "abundance") {
+        # get order of integer labels and text labels according to average abundance
+        # for x
+        x_ab <- avg_abundance[x_nodes]
+        ab_order <- order(x_ab, decreasing=FALSE)
+        x_ordered <- x_nodes[ab_order]
+        x_labels_ordered <- x_labels[ab_order]
+        # for y
+        y_ab <- avg_abundance[y_nodes]
+        ab_order <- order(y_ab, decreasing=FALSE)
+        y_ordered <- y_nodes[ab_order]
+        y_labels_ordered <- y_labels[ab_order]
+      } else {
+        # get order of integer labels and text labels according to taxonomy
+        # for x
+        x_tax <- tax_names[x_nodes]
+        tax_order <- order(x_tax, decreasing=TRUE)
+        x_ordered <- x_nodes[tax_order]
+        x_labels_ordered <- x_labels[tax_order]
+        # for y
+        y_ab <- avg_abundance[y_nodes]
+        ab_order <- order(y_ab, decreasing=TRUE)
+        y_ordered <- y_nodes[ab_order]
+        y_labels_ordered <- y_labels[ab_order]
+      }
 
       # apply the ordering
       text_df.left <- data.frame(ypos_left=1:length(x_ordered),
