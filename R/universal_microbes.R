@@ -246,6 +246,7 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param show_plot show() plot in addition to rendering it to a file
+#' @param order_by ordering of bigraph components; options are "abundance" or "taxonomy"
 #' @details Correlations are evaluated in the CLR. A threshold of 0.4 will identify pairs of 
 #' taxa with median correlation of > 0.4 or < -0.4. Pairs are rendered as bigraphs.
 #' @return NULL
@@ -255,6 +256,9 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' @examples
 #' get_universal_interactions(tax_level="genus")
 get_universal_interactions <- function(tax_level="genus", show_plot=FALSE, order_by="abundance") {
+  if(order_by != "abundance" & order_by != "taxonomy") {
+    stop(paste0("Invalid interaction ordering '",order_by,"'!\n")
+  }
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
   pairs_obj <- get_pairwise_correlations(tax_level=tax_level, logratio="clr")
   labels <- pairs_obj$labels
