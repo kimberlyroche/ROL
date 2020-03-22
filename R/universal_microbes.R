@@ -257,7 +257,7 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' get_universal_interactions(tax_level="genus")
 get_universal_interactions <- function(tax_level="genus", show_plot=FALSE, order_by="abundance") {
   if(order_by != "abundance" & order_by != "taxonomy") {
-    stop(paste0("Invalid interaction ordering '",order_by,"'!\n")
+    stop(paste0("Invalid interaction ordering '",order_by,"'!\n"))
   }
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
   pairs_obj <- get_pairwise_correlations(tax_level=tax_level, logratio="clr")
