@@ -341,10 +341,10 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE, order
         x_ordered <- x_nodes[tax_order]
         x_labels_ordered <- x_labels[tax_order]
         # for y
-        y_ab <- avg_abundance[y_nodes]
-        ab_order <- order(y_ab, decreasing=TRUE)
-        y_ordered <- y_nodes[ab_order]
-        y_labels_ordered <- y_labels[ab_order]
+        y_tax <- tax_names[y_nodes]
+        tax_order <- order(y_tax, decreasing=TRUE)
+        y_ordered <- y_nodes[tax_order]
+        y_labels_ordered <- y_labels[tax_order]
       }
 
       # apply the ordering
