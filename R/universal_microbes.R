@@ -206,11 +206,14 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
     interactions <- pairs_obj$interactions
     
     # hierarchically cluster all interactions
+    d <- dist(interactions)
+    clustering.hosts <- hclust(d)
     d <- dist(t(interactions))
-    clustering <- hclust(d)
+    clustering.interactions <- hclust(d)
     # reorder all
-    interactions.reordered <- interactions[,clustering$order]
-    labels.reordered <- labels[clustering$order]
+    interactions.reordered <- interactions[clustering.hosts$order,]
+    interactions.reordered <- interactions.reordered[,clustering.interactions$order]
+    labels.reordered <- labels[clustering.interactions$order]
     df <- gather_array(interactions.reordered, "correlation", "host", "pair")
     # plot
     p <- ggplot(df, aes(pair, host)) +
@@ -247,6 +250,7 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' taxa with median correlation of > 0.4 or < -0.4. Pairs are rendered as bigraphs.
 #' @return NULL
 #' @import ggplot2
+#' @import phyloseq
 #' @export
 #' @examples
 #' get_universal_interactions(tax_level="genus")
@@ -261,7 +265,12 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
 
   # order the interactions by median (large - to large +); we'll pull out the strongest
   ranks <- order(colMedians)
-  
+
+  # get average abundance; we'll order interactions (x vs. y) by this
+  data <- load_data(tax_level=tax_level)
+  avg_abundance <- colMeans(otu_table(data)@.Data)
+  names(avg_abundance) <- NULL
+
   criteria <- c("negative", "positive")
   for(criterion in criteria) {
     # take the top and bottom 10% of interactions
@@ -277,11 +286,10 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
     }
     
     if(length(interesting_pairs) > 0) {
-      
       # get readable labels
       tax_labels <- assign_concise_taxonomy(tax_level=tax_level, logratio="clr")
       
-      df <- data.frame(x=c(), y=c(), sign=c(), value=c())
+      df <- data.frame(x=c(), x_idx=c(), y=c(), y_idx=c(), sign=c(), value=c())
       for(p_idx in interesting_pairs) {
         interesting_pair <- labels[p_idx]
         microbe_pair <- as.numeric(strsplit(interesting_pair, "_")[[1]])
@@ -292,31 +300,52 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
           label.1 <- tax_labels[microbe_pair[1]]
           label.2 <- tax_labels[microbe_pair[2]]
         }
-        df <- rbind(df, data.frame(x=label.1, y=label.2, sign=sign(colMedians[p_idx]),
-                                   value=2*abs(colMedians[p_idx])))
+        df <- rbind(df, data.frame(x=label.1, x_idx=microbe_pair[1], y=label.2, y_idx=microbe_pair[2],
+                                   sign=sign(colMedians[p_idx]), value=2*abs(colMedians[p_idx])))
         cat(paste0("Interesting pair (",p_idx,"): ",label.1,", ",label.2,"\n"))
       }
+
+      # get order of integer labels and text labels according to average abundance
+      # for x
+      x_nodes <- unique(df$x_idx)
+      x_labels <- unique(df$x)
+      x_ab <- avg_abundance[x_nodes]
+      ab_order <- order(x_ab, decreasing=FALSE)
+      x_ordered <- x_nodes[ab_order]
+      x_labels_ordered <- x_labels[ab_order]
+      # for y
+      y_nodes <- unique(df$y_idx)
+      y_labels <- unique(df$y)
+      y_ab <- avg_abundance[y_nodes]
+      ab_order <- order(y_ab, decreasing=FALSE)
+      y_ordered <- y_nodes[ab_order]
+      y_labels_ordered <- y_labels[ab_order]
+
+      # apply the ordering
+      text_df.left <- data.frame(ypos_left=1:length(x_ordered),
+                                 x_idx=x_ordered,
+                                 label_left=x_labels_ordered)
+      text_df.right <- data.frame(ypos_right=seq(1, length(x_ordered), length.out=length(y_ordered)),
+                                  y_idx=y_ordered,
+                                  label_right=y_labels_ordered)
       
-      # plot bigraph
-      text_df.left <- data.frame(y=1:length(unique(df$x)), label=unique(df$x))
-      text_df.right <- data.frame(y=seq(1, length(unique(df$x)), length.out=length(unique(df$y))), label=unique(df$y))
-      
-      df <- cbind(df, node1=text_df.left$y[as.numeric(df$x)])
-      df <- cbind(df, node2=text_df.right$y[as.numeric(df$y)])
+      # join the interactions in 'df' and the nodes in 'text_df.*'
+      df <- merge(df, text_df.left, by="x_idx")
+      df <- merge(df, text_df.right, by="y_idx")
       df$sign <- as.factor(df$sign)
       
       if(criterion == "positive") {
-        edge_color <- "#379C19"
-      } else {
         edge_color <- "#E6194B"
+      } else {
+        edge_color <- "#202ABA"
       }
       
       p <- ggplot() +
-        geom_segment(data=df, aes(x=1, y=node1, xend=4, yend=node2, color=sign, size=value), alpha=0.2) +
+        geom_segment(data=df, aes(x=1, y=ypos_left, xend=4, yend=ypos_right, color=sign, size=value), alpha=0.2) +
         scale_color_manual(values=c(edge_color)) +
         scale_size_identity() + # use the width specified by `weight`
-        geom_text(data=text_df.left, aes(x=1, y=y, label=label), size=4) +
-        geom_text(data=text_df.right, aes(x=4, y=y, label=label), size=4) +
+        geom_text(data=text_df.left, aes(x=1, y=ypos_left, label=label_left), size=4) +
+        geom_text(data=text_df.right, aes(x=4, y=ypos_right, label=label_right), size=4) +
         xlim(0, 5) +
         theme(legend.position = "none",
               panel.grid = element_blank(),
@@ -330,6 +359,7 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE) {
       save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
       ggsave(file.path(save_dir,paste0(criterion,"_interactions_",tax_level,".png")),
              p, units="in", dpi=150, height=10, width=10)
+
     }
   }
 }

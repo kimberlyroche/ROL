@@ -50,7 +50,7 @@ load_data <- function(tax_level="genus", replicates=TRUE, host_sample_min=40, co
   # subset to hosts with minimum sample number
   sname_occurrences <- sample_data(agglomerated_data)$sname
   # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
-  hosts_over_threshold <<- names(which(table(sname_occurrences) > host_sample_min))
+  hosts_over_threshold <<- names(which(table(sname_occurrences) >= host_sample_min))
   subsetted_data <- subset_samples(agglomerated_data, sname %in% hosts_over_threshold)
   # filter
   filtered_data <- filter_data(subsetted_data, tax_level=tax_level, count_threshold=count_threshold, sample_threshold=sample_threshold)
