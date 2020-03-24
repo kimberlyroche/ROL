@@ -2,6 +2,7 @@
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param which_measure estimated object to embed, either Lambda or Sigma
+#' @param which_distance ignored for Lambda; for Sigma allowable options are "Riemannian" (default) or "Euclidean"
 #' @param MAP use MAP estimate model output instead of full posterior output
 #' @details Distance matrix between posterior samples saved to designated output directory. Saves
 #' a list containing distance matrix and labels of each row or column (by host).
@@ -11,7 +12,7 @@
 #' @export
 #' @examples
 #' calc_posterior_distances(tax_level="genus", which_measure="Sigma", MAP=FALSE)
-calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", MAP=FALSE) {
+calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", which_distance="Riemannian", MAP=FALSE) {
   # grab all fitted models
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=MAP)
   P <- model_list$D - 1 # ALR
@@ -19,7 +20,11 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
   n_hosts <- length(model_list$hosts)
   # initialize samples matrix
   if(which_measure == "Sigma") {
-    all_samples <- matrix(NA, P, P*n_samples*n_hosts)
+    if(which_distance == "Riemannian") {
+      all_samples <- matrix(NA, P, P*n_samples*n_hosts)
+    } else {
+      all_samples <- matrix(NA, (P^2)/2 + P/2, n_samples*n_hosts)
+    }
   } else {
     # we'll use per-sample average to manage individuals having different N so each individual's
     # posterior will be summarized as one mean vector
@@ -35,8 +40,16 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
     Lambda <- fit.ilr$Lambda
     Sigma <- fit.ilr$Sigma
     if(which_measure == "Sigma") {
-      Sigma <- Sigma[,,1:n_samples]
-      all_samples[,((i-1)*P*n_samples+1):(i*P*n_samples)] <- Sigma
+      if(which_distance == "Riemannian") {
+        Sigma <- Sigma[,,1:n_samples]
+        all_samples[,((i-1)*P*n_samples+1):(i*P*n_samples)] <- Sigma
+      } else {
+        host_offset <- (i-1)*n_samples
+        for(j in 1:n_samples) {
+          Sigma_sample <- Sigma[,,j]
+          all_samples[,(host_offset+j)] <- c(Sigma_sample[upper.tri(Sigma_sample, diag=T)])
+        }
+      }
       host_labels <- c(host_labels, rep(model_list$hosts[i], n_samples))
     } else {
       collLambda <- t(apply(Lambda, 3, function(X) { apply(X, 1, mean) })) # n_samples x P
@@ -52,7 +65,11 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", M
     dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,".rds"))
   }
   if(which_measure == "Sigma") {
-    distance_mat <- Riemann_dist_samples(all_samples, n_hosts, n_samples)
+    if(which_distance == "Riemannian") {
+      distance_mat <- Riemann_dist_samples(all_samples, n_hosts, n_samples)
+    } else {
+      distance_mat <- as.matrix(dist(t(all_samples)))
+    }
   } else {
     # use Euclidean distance
     distance_mat <- as.matrix(dist(all_samples))

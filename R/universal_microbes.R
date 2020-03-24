@@ -249,7 +249,7 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' @param order_by ordering of bigraph components; options are "abundance" or "taxonomy"
 #' @details Correlations are evaluated in the CLR. A threshold of 0.4 will identify pairs of 
 #' taxa with median correlation of > 0.4 or < -0.4. Pairs are rendered as bigraphs.
-#' @return NULL
+#' @return data.frame of microbial pairs (by index in taxonomy and label) and median correlation across hosts
 #' @import ggplot2
 #' @import phyloseq
 #' @export
@@ -388,4 +388,15 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE, order
 
     }
   }
+
+  # messy but assemble the data.frame to return
+  interaction_set <- as.data.frame(t(sapply(pairs_obj$labels, function(x) as.numeric(strsplit(x, "_")[[1]]))))
+  label_obj <- as.data.frame(sapply(interaction_set[,1], function(x) tax_labels[x]))
+  label_obj <- cbind(label_obj, sapply(interaction_set[,2], function(x) tax_labels[x]))
+  interaction_set <- cbind(interaction_set, label_obj, colMedians)
+  rownames(interaction_set) <- NULL
+  colnames(interaction_set) <- c("idx.1", "idx.2", "label.1", "label.2", "median_corr")
+  # reorder by ranks
+  interaction_set <- interaction_set[ranks,]
+  return(interaction_set)
 }
