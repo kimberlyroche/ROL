@@ -35,10 +35,12 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", w
   for(i in 1:n_hosts) {
     fit <- read_file(model_list$model_list[i])$fit
     # convert to ILR; this can be removed
-    V <- driver::create_default_ilr_base(ncategories(fit))
-    fit.ilr <- to_ilr(fit, V)
-    Lambda <- fit.ilr$Lambda
-    Sigma <- fit.ilr$Sigma
+    # V <- driver::create_default_ilr_base(ncategories(fit))
+    # fit.ilr <- to_ilr(fit, V)
+    # Lambda <- fit.ilr$Lambda
+    # Sigma <- fit.ilr$Sigma
+    Lambda <- fit$Lambda
+    Sigma <- fit$Sigma
     if(which_measure == "Sigma") {
       if(which_distance == "Riemannian") {
         Sigma <- Sigma[,,1:n_samples]
@@ -549,16 +551,19 @@ plot_MAP_covariance <- function(host, tax_level="genus", show_plot=FALSE) {
 #' @param host host short name (e.g. ACA)
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param predict_coords ALR coordinates to visualize prediction intervals over
+#' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
 #' @details Output are png files of predicted series intervals.
 #' @return NULL
 #' @import driver
 #' @import dplyr
 #' @import ggplot2
+#' @import phyloseq
+#' @import dplyr
 #' @export
 #' @examples
 #' plot_posterior_predictive(host="ZIB", tax_level="genus", predict_coords=c(1,2,3))
-plot_posterior_predictive <- function(host, tax_level="genus", predict_coords=NULL, show_plot=FALSE) {
+plot_posterior_predictive <- function(host, tax_level="genus", predict_coords=NULL, logratio="clr", show_plot=FALSE) {
   fit_filename <- file.path("output","model_fits",tax_level,paste0(host,"_bassetfit.rds"))
   if(!file.exists(fit_filename)) {
     stop(paste0("Model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
@@ -576,18 +581,33 @@ plot_posterior_predictive <- function(host, tax_level="genus", predict_coords=NU
   
   # note: these predictions are in the ALR
   predict_obj <- make_posterior_predictions(fit_obj$X, fit_obj$fit)
+
+  Eta <- predict_obj$Y_predict
+  if(logratio != "alr") {
+    lr_ys <- alr(t(fit_obj$Y) + 0.5)
+    if(logratio == "clr") {
+      Eta <- alrInv_array(Eta, fit_obj$fit$D, 1)
+      Eta <- clr_array(Eta, 1)
+      lr_ys <- clr(t(fit_obj$Y) + 0.5)
+    }
+    if(logratio == "ilr") {
+      Eta <- alrInv_array(Eta, fit_obj$fit$D, 1)
+      Eta <- ilr_array(Eta, 1)
+      lr_ys <- ilr(t(fit_obj$Y) + 0.5)
+    }
+  } 
   
   for(coord in predict_coords) {
     observations <- fit_obj$X
-    alr_tidy <- gather_array(fit_obj$alr_ys, "logratio_value", "timepoint", "logratio_coord")
+    lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
     
     # replace timepoints with observation dates for readability
     map <- data.frame(timepoint=1:length(observations), observation=c(observations))
-    alr_tidy <- merge(alr_tidy, map, by="timepoint")
-    alr_tidy <- alr_tidy[,!(names(alr_tidy) %in% c("timepoint"))]
+    lr_tidy <- merge(lr_tidy, map, by="timepoint")
+    lr_tidy <- lr_tidy[,!(names(lr_tidy) %in% c("timepoint"))]
     
-    no_samples <- dim(predict_obj$Y_predict)[3]
-    posterior_samples <- gather_array(predict_obj$Y_predict[coord,,], "logratio_value", "observation", "sample_number")
+    no_samples <- dim(Eta)[3]
+    posterior_samples <- gather_array(Eta[coord,,], "logratio_value", "observation", "sample_number")
     
     # get quantiles
     post_quantiles <- posterior_samples %>%
@@ -608,7 +628,7 @@ plot_posterior_predictive <- function(host, tax_level="genus", predict_coords=NU
       geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
       geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
       geom_line(color="blue") +
-      geom_point(data=alr_tidy[alr_tidy$logratio_coord == coord,], aes(x=observation, y=logratio_value), alpha=0.5) +
+      geom_point(data=lr_tidy[lr_tidy$logratio_coord == coord,], aes(x=observation, y=logratio_value), alpha=0.5) +
       theme_minimal() +
       theme(axis.title.x = element_blank(),
             axis.text.x = element_text(angle=45)) +
