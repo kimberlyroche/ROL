@@ -4,7 +4,8 @@
 \alias{embed_posteriors}
 \title{Embeds posterior samples using MDS and a pre-calculated distance matrix}
 \usage{
-embed_posteriors(tax_level = "genus", which_measure = "Sigma", MAP = FALSE)
+embed_posteriors(tax_level = "genus", which_measure = "Sigma",
+  MAP = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

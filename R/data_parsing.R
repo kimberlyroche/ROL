@@ -170,3 +170,25 @@ check_output_dir <- function(path_to_dir) {
   }
   return(do.call(file.path, as.list(path_to_dir)))
 }
+
+#' Get taxonomy, reordered to reflect altered ALR reference
+#' 
+#' @param data a phyloseq object
+#' @param alr_ref index of ALR reference taxon
+#' @return data.frame of re-ordered taxonomy
+#' @import phyloseq
+#' @export
+#' @examples
+#' tax <- get_taxonomy(data, alr_ref=67)
+get_taxonomy <- function(data, alr_ref) {
+  if(is.null(alr_ref)) {
+    stop(paste0("Missing ALR reference index!\n"))
+  }
+  if(alr_ref < 1 | alr_ref > ntaxa(data)) {
+    stop("Invalid ALR reference index!\n")
+  }
+  tax <- tax_table(data)@.Data
+  tax <- tax[c(setdiff(1:nrow(tax),alr_ref),alr_ref),]
+  rownames(tax) <- NULL
+  return(tax)
+}

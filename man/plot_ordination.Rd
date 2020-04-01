@@ -4,13 +4,8 @@
 \alias{plot_ordination}
 \title{Plot first several principle coordinates of ordination}
 \usage{
-plot_ordination(
-  tax_level = "genus",
-  which_measure = "Sigma",
-  annotation = "host",
-  MAP = FALSE,
-  show_plot = FALSE
-)
+plot_ordination(tax_level = "genus", which_measure = "Sigma",
+  annotation = "host", MAP = FALSE, show_plot = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

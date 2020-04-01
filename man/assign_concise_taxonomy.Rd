@@ -4,11 +4,8 @@
 \alias{assign_concise_taxonomy}
 \title{Calculate Riemannian distances between all posterior samples}
 \usage{
-assign_concise_taxonomy(
-  tax_level = "genus",
-  logratio = "alr",
-  other_category = 0
-)
+assign_concise_taxonomy(tax_level = "genus", logratio = "alr",
+  other_category = 0)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

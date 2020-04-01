@@ -4,12 +4,8 @@
 \alias{plot_posterior_predictive}
 \title{Plot posterior predictive intervals of Eta (denoised ALR abundances) over observed time series for designated host}
 \usage{
-plot_posterior_predictive(
-  host,
-  tax_level = "genus",
-  predict_coords = NULL,
-  show_plot = FALSE
-)
+plot_posterior_predictive(host, tax_level = "genus",
+  predict_coords = NULL, logratio = "clr", show_plot = FALSE)
 }
 \arguments{
 \item{host}{host short name (e.g. ACA)}
@@ -17,6 +13,8 @@ plot_posterior_predictive(
 \item{tax_level}{taxonomic level at which to agglomerate data}
 
 \item{predict_coords}{ALR coordinates to visualize prediction intervals over}
+
+\item{logratio}{logratio representation to use (e.g. "alr", "ilr", "clr")}
 
 \item{show_plot}{show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)}
 }

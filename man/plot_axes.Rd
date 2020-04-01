@@ -4,16 +4,9 @@
 \alias{plot_axes}
 \title{Plot a pair of principal coordinates}
 \usage{
-plot_axes(
-  coordinates = NULL,
-  centroids,
-  tax_level = "genus",
-  axis1 = 1,
-  axis2 = 2,
-  annotation = "host",
-  MAP = FALSE,
-  show_plot = FALSE
-)
+plot_axes(coordinates = NULL, centroids, tax_level = "genus",
+  axis1 = 1, axis2 = 2, annotation = "host", MAP = FALSE,
+  show_plot = FALSE)
 }
 \arguments{
 \item{coordinates}{data.frame of coordinates from posterior embedding}

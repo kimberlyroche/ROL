@@ -33,8 +33,9 @@ load_MAP_estimates <- function(tax_level="genus", logratio="alr") {
 #' @return readable label of the form "phylum Tenericutes"
 #' @export
 #' @examples
-#' data <- read_file(file.path("input","filtered_genus_5_20.rds"))
-#' taxonomy <- tax_table(data)@.Data
+#' data <- load_data(tax_level="genus")
+#' alr_ref <- formalize_parameters(data)$alr_ref
+#' taxonomy <- get_taxonomy(data, alr_ref)
 #' # get deepest resolve level for the first sequence variant
 #' label <- get_deepest_assignment(taxonomy[1,], deepest_tax_level="species")
 get_deepest_assignment <- function(taxonomy, deepest_tax_level="genus") {
@@ -61,11 +62,12 @@ assign_concise_taxonomy <- function(tax_level="genus", logratio="alr", other_cat
     stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
   }
   data <- read_file(file.path("input",paste0("filtered_",tax_level,"_5_20.rds")))
-  taxonomy <- tax_table(data)@.Data
+  alr_ref <- formalize_parameters(data)$alr_ref
+  taxonomy <- get_taxonomy(data, alr_ref)
   level_number <- which(colnames(taxonomy) == tax_level)
   if(logratio == "alr") {
     labels <- character(nrow(taxonomy)-1)
-    alr.ref <- get_deepest_assignment(taxonomy[nrow(tax),])
+    alr.ref <- get_deepest_assignment(taxonomy[nrow(taxonomy),])
   } else {
     labels <- character(nrow(taxonomy))
   }
@@ -80,9 +82,9 @@ assign_concise_taxonomy <- function(tax_level="genus", logratio="alr", other_cat
       deep_label <- get_deepest_assignment(taxonomy[i,])
       if(logratio == "alr") {
         if(is.null(deep_label)) {
-          labels[i] <- paste0("ALR(unresolved)/ALR(",alr.ref,")")
+          labels[i] <- paste0("ALR(unresolved/",alr.ref,")")
         } else {
-          labels[i] <- paste0("ALR(",get_deepest_assignment(taxonomy[i,]),")/ALR(",alr.ref,")")
+          labels[i] <- paste0("ALR(",get_deepest_assignment(taxonomy[i,]),"/",alr.ref,")")
         }
       } else {
         if(is.null(deep_label)) {
@@ -276,11 +278,11 @@ get_universal_interactions <- function(tax_level="genus", show_plot=FALSE, order
     avg_abundance <- colMeans(otu_table(data)@.Data)
     names(avg_abundance) <- NULL
   } else {
-    tax <- tax_table(data)
-    rownames(tax) <- NULL
-    colnames(tax) <- NULL
-    tax[is.na(tax)] <- "zzz"
-    tax_names <- apply(tax, 1, function(x) paste(x, collapse="/"))
+    alr_ref <- formalize_parameters(data)$alr_ref
+    taxonomy <- get_taxonomy(data, alr_ref)
+    colnames(taxonomy) <- NULL
+    taxonomy[is.na(taxonomy)] <- "zzz"
+    tax_names <- apply(taxonomy, 1, function(x) paste(x, collapse="/"))
   }
 
   criteria <- c("negative", "positive")

@@ -4,12 +4,18 @@
 \alias{get_universal_interactions}
 \title{Identify and plot "universal" interactions at the designated taxonomic level}
 \usage{
-get_universal_interactions(tax_level = "genus", show_plot = FALSE)
+get_universal_interactions(tax_level = "genus", show_plot = FALSE,
+  order_by = "abundance")
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
 
 \item{show_plot}{show() plot in addition to rendering it to a file}
+
+\item{order_by}{ordering of bigraph components; options are "abundance" or "taxonomy"}
+}
+\value{
+data.frame of microbial pairs (by index in taxonomy and label) and median correlation across hosts
 }
 \description{
 Identify and plot "universal" interactions at the designated taxonomic level

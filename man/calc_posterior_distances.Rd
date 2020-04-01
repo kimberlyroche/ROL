@@ -4,16 +4,15 @@
 \alias{calc_posterior_distances}
 \title{Calculate distances between all posterior samples of either Sigma or Lambda}
 \usage{
-calc_posterior_distances(
-  tax_level = "genus",
-  which_measure = "Sigma",
-  MAP = FALSE
-)
+calc_posterior_distances(tax_level = "genus", which_measure = "Sigma",
+  which_distance = "Riemannian", MAP = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
 
 \item{which_measure}{estimated object to embed, either Lambda or Sigma}
+
+\item{which_distance}{ignored for Lambda; for Sigma allowable options are "Riemannian" (default) or "Euclidean"}
 
 \item{MAP}{use MAP estimate model output instead of full posterior output}
 }

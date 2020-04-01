@@ -253,7 +253,7 @@ fit_GP <- function(data, host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_da
   }
 
   # pack up results
-  fit_obj <- list(Y=Y, alr_ys=alr_ys, X=observations, fit=fit)
+  fit_obj <- list(Y=Y, alr_ys=alr_ys, alr_ref=alr_ref, X=observations, fit=fit)
   
   # a hack: for later prediction, these will need to be available in the workspace for Gamma
   fit_obj$kernelparams$SE_sigma <- SE_sigma
