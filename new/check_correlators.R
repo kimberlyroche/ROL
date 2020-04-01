@@ -19,20 +19,20 @@ ranked_interactions <- ranked_interactions[ranked_interactions$rank,] # min corr
 rownames(ranked_interactions) <- 1:nrow(ranked_interactions)
 
 # sample along the rows
-# negative_idx_bounds <- c(1, max(as.numeric(rownames(ranked_interactions[ranked_interactions$value <= -0.5,]))))
-# positive_idx_bounds <- c(min(as.numeric(rownames(ranked_interactions[ranked_interactions$value >= 0.5,]))), nrow(ranked_interactions))
-# idx <- c(round(seq(negative_idx_bounds[1], negative_idx_bounds[2], length.out=10)),
-#          round(seq(positive_idx_bounds[1], positive_idx_bounds[2], length.out=10)))
+negative_idx_bounds <- c(1, max(as.numeric(rownames(ranked_interactions[ranked_interactions$value <= -0.5,]))))
+positive_idx_bounds <- c(min(as.numeric(rownames(ranked_interactions[ranked_interactions$value >= 0.5,]))), nrow(ranked_interactions))
+idx <- c(round(seq(negative_idx_bounds[1], negative_idx_bounds[2], length.out=6)),
+         round(seq(positive_idx_bounds[1], positive_idx_bounds[2], length.out=6)))
 
 # choose indices by quantile instead; there's probably a more elegant way than this
-percentile <- ecdf(ranked_interactions$value)
-ranked_interactions$percentile <- round(sapply(ranked_interactions$value, percentile),2)
-pp <- c(0.01, 0.05, 0.1, 0.2, 0.8, 0.9, 0.95, 0.99)
-idx <- c()
-for(p in pp) {
-  hits <- ranked_interactions[ranked_interactions$percentile == p,]
-  idx <- c(idx, as.numeric(rownames(hits))[1])
-}
+# percentile <- ecdf(ranked_interactions$value)
+# ranked_interactions$percentile <- round(sapply(ranked_interactions$value, percentile),2)
+# pp <- c(0.0)
+# idx <- c()
+# for(p in pp) {
+#   hits <- ranked_interactions[ranked_interactions$percentile == p,]
+#   idx <- c(idx, as.numeric(rownames(hits))[1])
+# }
 
 # get taxonomy for readable names
 taxonomy <- assign_concise_taxonomy(tax_level=tax_level, logratio="none")
@@ -94,12 +94,15 @@ for(ii in 1:length(idx)) {
 
   df <- data.frame(x=c(post_quantiles.1$observation, post_quantiles.2$observation),
                    y=c(post_quantiles.1$mean, post_quantiles.2$mean),
-                   label=c(rep("microbe 1", nrow(post_quantiles.1)), rep("microbe 2", nrow(post_quantiles.2))))
+                   label=c(rep(paste0(microbe_pair_labels[1]," (#",microbe_pair[1],")"), nrow(post_quantiles.1)),
+                           rep(paste0(microbe_pair_labels[2]," (#",microbe_pair[2],")"), nrow(post_quantiles.2))))
 
   p.1 <- ggplot(df) +
     geom_line(aes(x=x, y=y, color=label)) +
     xlab("days from first sample") +
-    ylab("centered mean CLR abundance")
+    ylab("centered mean CLR abundance") +
+    ggtitle(paste0("Correlation: ",round(value, 2))) +
+    theme(legend.position="bottom")
   if(sign(value) < 0) {
     append_str = "neg"
   } else {
@@ -114,7 +117,7 @@ for(ii in 1:length(idx)) {
     ylab("centered mean CLR abundance 2")
 
   p <- plot_grid(p.1, p.2, align="h", nrow=1, rel_widths=c(3/4, 1/4))
-  ggsave(paste0("output/sanity_check_pair_",str_pad(ii, 2, pad="0"),"_",append_str,"_",round(abs(value), 2),".png"),
+  ggsave(paste0("output/sanity_check_pair_",str_pad(ii, 2, pad="0"),".png"),
     p, dpi=100, units="in", height=3, width=12)
-}
 
+}
