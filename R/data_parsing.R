@@ -217,7 +217,7 @@ get_deepest_assignment <- function(taxonomy, deepest_tax_level="genus") {
 #' Get concise taxonomic labels for microbes
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
-#' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
+#' @param logratio logratio representation to use (e.g. "alr", "clr", "none")
 #' @param other_category "Other" taxonomic category of collapsed low abundance taxa (if available)
 #' @details If other_category is provided, these taxa will be rendered as *LR(Other).
 #' @return readable list of taxonomic labels (e.g. of the form "CLR(phylum Tenericutes)")
@@ -225,7 +225,7 @@ get_deepest_assignment <- function(taxonomy, deepest_tax_level="genus") {
 #' @examples
 #' tax_labels <- assign_concise_taxonomy(tax_level="genus", logratio="alr", other_category=0)
 assign_concise_taxonomy <- function(tax_level="genus", logratio="alr", other_category=0) {
-  if(logratio != "alr" & logratio != "clr") {
+  if(logratio != "alr" & logratio != "clr" & logratio != "none") {
     stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
   }
   data <- read_file(file.path("input",paste0("filtered_",tax_level,"_5_20.rds")))
@@ -242,22 +242,30 @@ assign_concise_taxonomy <- function(tax_level="genus", logratio="alr", other_cat
     if(i == other_category) {
       if(logratio == "alr") {
         labels[i] <- paste0("ALR(Other / ",alr.ref,")")
-      } else {
+      } else if(logratio == "clr") {
         labels[i] <- paste0("CLR(Other)")
+      } else {
+        labels[i] <- paste0("Other")
       }
     } else {
       deep_label <- get_deepest_assignment(taxonomy[i,])
       if(logratio == "alr") {
         if(is.null(deep_label)) {
-          labels[i] <- paste0("ALR(unresolved/",alr.ref,")")
+          labels[i] <- paste0("ALR(Unresolved/",alr.ref,")")
         } else {
           labels[i] <- paste0("ALR(",get_deepest_assignment(taxonomy[i,]),"/",alr.ref,")")
         }
-      } else {
+      } else if(logratio == "clr") {
         if(is.null(deep_label)) {
-          labels[i] <- paste0("CLR(unresolved)")
+          labels[i] <- paste0("CLR(Unresolved)")
         } else {
           labels[i] <- paste0("CLR(",get_deepest_assignment(taxonomy[i,]),")")
+        }
+      } else {
+        if(is.null(deep_label)) {
+          labels[i] <- "Unresolved"
+        } else {
+          labels[i] <- get_deepest_assignment(taxonomy[i,])
         }
       }
     }
