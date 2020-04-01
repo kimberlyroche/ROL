@@ -192,3 +192,75 @@ get_taxonomy <- function(data, alr_ref) {
   rownames(tax) <- NULL
   return(tax)
 }
+
+#' Get highest taxonomic level to which a microbe is resolved (i.e. not NA)
+#' 
+#' @param taxonomy a named list of taxonomic assignment for a designated sequence variant
+#' @param deepest_tax_level the finest resolution taxonomy level to return (if possible)
+#' @return readable label of the form "phylum Tenericutes"
+#' @export
+#' @examples
+#' data <- load_data(tax_level="genus")
+#' alr_ref <- formalize_parameters(data)$alr_ref
+#' taxonomy <- get_taxonomy(data, alr_ref)
+#' # get deepest resolve level for the first sequence variant
+#' label <- get_deepest_assignment(taxonomy[1,], deepest_tax_level="species")
+get_deepest_assignment <- function(taxonomy, deepest_tax_level="genus") {
+  for(j in which(names(taxonomy) == deepest_tax_level):1) {
+    if(!is.na(taxonomy[j])) {
+      return(paste0(names(taxonomy)[j]," ",taxonomy[j]))
+    }
+  }
+  return(NULL)
+}
+
+#' Get concise taxonomic labels for microbes
+#' 
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
+#' @param other_category "Other" taxonomic category of collapsed low abundance taxa (if available)
+#' @details If other_category is provided, these taxa will be rendered as *LR(Other).
+#' @return readable list of taxonomic labels (e.g. of the form "CLR(phylum Tenericutes)")
+#' @export
+#' @examples
+#' tax_labels <- assign_concise_taxonomy(tax_level="genus", logratio="alr", other_category=0)
+assign_concise_taxonomy <- function(tax_level="genus", logratio="alr", other_category=0) {
+  if(logratio != "alr" & logratio != "clr") {
+    stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
+  }
+  data <- read_file(file.path("input",paste0("filtered_",tax_level,"_5_20.rds")))
+  alr_ref <- formalize_parameters(data)$alr_ref
+  taxonomy <- get_taxonomy(data, alr_ref)
+  level_number <- which(colnames(taxonomy) == tax_level)
+  if(logratio == "alr") {
+    labels <- character(nrow(taxonomy)-1)
+    alr.ref <- get_deepest_assignment(taxonomy[nrow(taxonomy),])
+  } else {
+    labels <- character(nrow(taxonomy))
+  }
+  for(i in 1:length(labels)) {
+    if(i == other_category) {
+      if(logratio == "alr") {
+        labels[i] <- paste0("ALR(Other / ",alr.ref,")")
+      } else {
+        labels[i] <- paste0("CLR(Other)")
+      }
+    } else {
+      deep_label <- get_deepest_assignment(taxonomy[i,])
+      if(logratio == "alr") {
+        if(is.null(deep_label)) {
+          labels[i] <- paste0("ALR(unresolved/",alr.ref,")")
+        } else {
+          labels[i] <- paste0("ALR(",get_deepest_assignment(taxonomy[i,]),"/",alr.ref,")")
+        }
+      } else {
+        if(is.null(deep_label)) {
+          labels[i] <- paste0("CLR(unresolved)")
+        } else {
+          labels[i] <- paste0("CLR(",get_deepest_assignment(taxonomy[i,]),")")
+        }
+      }
+    }
+  }
+  return(labels)
+}

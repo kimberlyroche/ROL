@@ -19,17 +19,35 @@ ranked_interactions <- ranked_interactions[ranked_interactions$rank,] # min corr
 rownames(ranked_interactions) <- 1:nrow(ranked_interactions)
 
 # sample along the rows
-negative_idx_bounds <- c(1, max(as.numeric(rownames(ranked_interactions[ranked_interactions$value <= -0.5,]))))
-positive_idx_bounds <- c(min(as.numeric(rownames(ranked_interactions[ranked_interactions$value >= 0.5,]))), nrow(ranked_interactions))
-idx <- c(round(seq(negative_idx_bounds[1], negative_idx_bounds[2], length.out=10)),
-         round(seq(positive_idx_bounds[1], positive_idx_bounds[2], length.out=10)))
+# negative_idx_bounds <- c(1, max(as.numeric(rownames(ranked_interactions[ranked_interactions$value <= -0.5,]))))
+# positive_idx_bounds <- c(min(as.numeric(rownames(ranked_interactions[ranked_interactions$value >= 0.5,]))), nrow(ranked_interactions))
+# idx <- c(round(seq(negative_idx_bounds[1], negative_idx_bounds[2], length.out=10)),
+#          round(seq(positive_idx_bounds[1], positive_idx_bounds[2], length.out=10)))
+
+# choose indices by quantile instead; there's probably a more elegant way than this
+percentile <- ecdf(ranked_interactions$value)
+ranked_interactions$percentile <- round(sapply(ranked_interactions$value, percentile),2)
+pp <- c(0.01, 0.05, 0.1, 0.2, 0.8, 0.9, 0.95, 0.99)
+idx <- c()
+for(p in pp) {
+  hits <- ranked_interactions[ranked_interactions$percentile == p,]
+  idx <- c(idx, as.numeric(rownames(hits))[1])
+}
+
+# get taxonomy for readable names
+taxonomy <- assign_concise_taxonomy(tax_level=tax_level, logratio="none")
+
 for(ii in 1:length(idx)) {
   i <- idx[ii]
   host <- model_list$hosts[ranked_interactions[i,]$host]
   pair <- pairs_obj$labels[ranked_interactions[i,]$pair]
   value <- ranked_interactions[i,]$value
   microbe_pair <- as.numeric(strsplit(pair, "_")[[1]])
-  cat(paste0("Evaluating pair ",microbe_pair[1]," vs. ",microbe_pair[2]," in host ",host,"...\n"))
+  # assumes tax level is ASV, logratio is CLR
+  microbe_pair_labels <- c(paste0("CLR(ASV in ",taxonomy[microbe_pair[1]],")"),
+                           paste0("CLR(ASV in ",taxonomy[microbe_pair[2]],")"))
+  cat(paste0("Evaluating pair (",microbe_pair[1],") ",microbe_pair_labels[1]," vs. (",microbe_pair[2],") ",
+    microbe_pair_labels[2]," in host ",host,"...\n"))
 
   fit_filename <- file.path("output","model_fits",tax_level,paste0(host,"_bassetfit.rds"))
   fit_obj <- read_file(fit_filename)
