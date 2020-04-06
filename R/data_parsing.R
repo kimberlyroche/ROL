@@ -15,7 +15,6 @@ read_file <- function(filename) {
 #' Load ABRP 16S data and filter out low abundance taxa
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
-#' @param replicates include replicates
 #' @param host_sample_min minimum sample number for host inclusion in the filtered data set
 #' @param count_threshold minimum count at which a taxon must be observed
 #' @param sample_threshold minimum proportion of samples within each host at which a taxon must be observed at the level specified by count_threshold
@@ -25,8 +24,8 @@ read_file <- function(filename) {
 #' @import phyloseq
 #' @export
 #' @examples
-#' data <- load_data(tax_level="genus", replicates=TRUE, host_sample_min=40, count_threshold=5, sample_threshold=0.2)
-load_data <- function(tax_level="genus", replicates=TRUE, host_sample_min=40, count_threshold=5, sample_threshold=0.2) {
+#' data <- load_data(tax_level="ASV", host_sample_min=75, count_threshold=5, sample_threshold=0.2)
+load_data <- function(tax_level="ASV", host_sample_min=75, count_threshold=5, sample_threshold=0.2) {
   if(is.null(tax_level)) {
     tax_level <- "ASV"
   }
@@ -37,15 +36,11 @@ load_data <- function(tax_level="genus", replicates=TRUE, host_sample_min=40, co
       return(readRDS(filename))
     }
     # continue with no agglomeration
-    if(replicates) {
-      filename <- file.path("input","data_w_rep.rds")
-    } else {
-      filename <- file.path("input","data_wo_rep.rds")
-    }
+    filename <- file.path("input","ps0.rds")
     agglomerated_data <- readRDS(filename)
   } else {
     # agglomerate
-    agglomerated_data <- agglomerate_data(tax_level=tax_level, replicates=replicates)
+    agglomerated_data <- agglomerate_data(tax_level=tax_level)
   }
   # subset to hosts with minimum sample number
   sname_occurrences <- sample_data(agglomerated_data)$sname
@@ -60,31 +55,22 @@ load_data <- function(tax_level="genus", replicates=TRUE, host_sample_min=40, co
 #' Agglomerate ABRP 16S data to desired taxonomic level
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
-#' @param replicates include replicates
 #' @return phyloseq object
 #' @import phyloseq
 #' @importFrom phyloseq tax_glom
 #' @export
 #' @examples
-#' data <- agglomerate_data(tax_level="genus", replicates=TRUE)
-agglomerate_data <- function(tax_level="genus", replicates=TRUE) {
+#' data <- agglomerate_data(tax_level="ASV")
+agglomerate_data <- function(tax_level="ASV") {
   if(tax_level == "ASV") {
     return(data)
   }
-  if(replicates) {
-    out_filename <- file.path("input",paste0("glom_data_",tax_level,"_reps.rds"))
-  } else {
-    out_filename <- file.path("input",paste0("glom_data_",tax_level,".rds"))
-  }
+  out_filename <- file.path("input",paste0("glom_data_",tax_level,".rds"))
   if(file.exists(out_filename)) {
     data <- readRDS(out_filename)
     return(data)
   }
-  if(replicates) {
-    in_filename <- file.path("input","data_w_rep.rds")
-  } else {
-    in_filename <- file.path("input","data_wo_rep.rds")
-  }
+  in_filename <- file.path("input","ps0.rds")
   if(file.exists(in_filename)) {
     data <- readRDS(in_filename)
   } else {
@@ -200,7 +186,7 @@ get_taxonomy <- function(data, alr_ref) {
 #' @return readable label of the form "phylum Tenericutes"
 #' @export
 #' @examples
-#' data <- load_data(tax_level="genus")
+#' data <- load_data(tax_level="ASV")
 #' alr_ref <- formalize_parameters(data)$alr_ref
 #' taxonomy <- get_taxonomy(data, alr_ref)
 #' # get deepest resolve level for the first sequence variant
@@ -223,8 +209,8 @@ get_deepest_assignment <- function(taxonomy, deepest_tax_level="genus") {
 #' @return readable list of taxonomic labels (e.g. of the form "CLR(phylum Tenericutes)")
 #' @export
 #' @examples
-#' tax_labels <- assign_concise_taxonomy(tax_level="genus", logratio="alr", other_category=0)
-assign_concise_taxonomy <- function(tax_level="genus", logratio="alr", other_category=0) {
+#' tax_labels <- assign_concise_taxonomy(tax_level="ASV", logratio="alr", other_category=0)
+assign_concise_taxonomy <- function(tax_level="ASV", logratio="alr", other_category=0) {
   if(logratio != "alr" & logratio != "clr" & logratio != "none") {
     stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
   }

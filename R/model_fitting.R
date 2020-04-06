@@ -37,8 +37,8 @@ fix_MAP_dims <- function(fit) {
 #' @return NULL
 #' @export
 #' @examples
-#' model_list <- get_fitted_model_list(tax_level="genus", MAP=FALSE)
-get_fitted_model_list <- function(tax_level="genus", MAP=FALSE) {
+#' model_list <- get_fitted_model_list(tax_level="ASV", MAP=FALSE)
+get_fitted_model_list <- function(tax_level="ASV", MAP=FALSE) {
   # all fitted models have this suffix
   pattern_str <- "*_bassetfit.rds"
   regexpr_str <- "_bassetfit.rds"
@@ -82,8 +82,7 @@ default_ALR_prior <- function(D, log_var_scale=1) {
   return(list(upsilon=upsilon, Xi=Xi))
 }
 
-#' Generate empirical estimates for variance components to use in the Gaussian process by
-#' estimating the noise between replicates
+#' Generate empirical estimates for variance components to use in the Gaussian process
 #' 
 #' @param data a phyloseq object
 #' @return list containing variance recommended for SE and PER kernels
@@ -103,28 +102,10 @@ formalize_parameters <- function(data) {
   counts <- otu_table(data)@.Data
   alr_ref <- which(order(apply(counts, 2, mean)) == round(ncol(counts)/2))
 
-  # apply the ALR we'll model in  
-  log_ratios <- alr(counts + 0.5, d=alr_ref)
-  unique_sids <- unique(metadata[metadata$sample_status == 2,]$sid)
-  replicate_var <- c()
-  for(usid_idx in 1:length(unique_sids)) {
-    # omit sketchy replicates with super low total counts (< 5K)
-    retain_sids <- metadata$sample_id[metadata$sid == unique_sids[usid_idx]]
-    sample_counts <- otu_table(data)@.Data[metadata$sid == unique_sids[usid_idx],]
-    # omit where total counts are below 5K bounds
-    total_counts <- c(apply(sample_counts, 1, sum))
-    retain_sids <- retain_sids[total_counts >= 5000]
-    if(length(retain_sids) >= 3) {
-      # these are samples (rows) x taxa (columns)
-      lr <- log_ratios[(rownames(log_ratios) %in% retain_sids),]
-      lr <- scale(lr, scale=FALSE)
-      # the mean of each vector's norm should be an estimate of variance between replicates
-      # (just from formula for variance)
-      sample_var <- cov(t(lr))
-      replicate_var <- c(replicate_var, diag(sample_var))
-    }
-  }
-  
+  # apply the ALR we'll model in
+  log_ratios <- alr(counts + 0.5, d=alr_ref) # samples x taxa
+
+  # get mean within-host ALR total variance
   host_var <- c()
   for(host in unique(metadata$sname)) {
     retain_sids <- metadata[metadata$sname == host,]$sample_id
@@ -137,7 +118,6 @@ formalize_parameters <- function(data) {
   }
   
   mean_total_var <- mean(host_var)
-  mean_rep_var <- mean(replicate_var)
   
   # return squared exponential kernel variance as 45% (90%/2) the total empirical ALR variance and the periodic
   # kernel variance as 5% (10%/2) the total empirical ALR variance
@@ -162,9 +142,9 @@ formalize_parameters <- function(data) {
 #' @import stray
 #' @export
 #' @examples
-#' data <- load_data(tax_level="genus")
-#' fit_GP(data, host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
-fit_GP <- function(data, host, tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90,
+#' data <- load_data(tax_level="ASV")
+#' fit_GP(data, host="ACA", tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
+fit_GP <- function(data, host, tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90,
                    date_lower_limit=NULL, date_upper_limit=NULL, alr_ref=NULL, n_samples=100, MAP=FALSE,
                    ...) {
   if(MAP) {

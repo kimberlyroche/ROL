@@ -7,8 +7,8 @@
 #' @import stray
 #' @export
 #' @examples
-#' Sigmas <- load_MAP_estimates(tax_level="genus", logratio="alr")
-load_MAP_estimates <- function(tax_level="genus", logratio="alr") {
+#' Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="alr")
+load_MAP_estimates <- function(tax_level="ASV", logratio="alr") {
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
   Sigmas <- list()
   for(i in 1:length(model_list$hosts)) {
@@ -35,8 +35,8 @@ load_MAP_estimates <- function(tax_level="genus", logratio="alr") {
 #' @return correlation matrix of dimensions {number of hosts} x {number of logratio taxa - 1}
 #' @export
 #' @examples
-#' interactions <- get_all_vs_one_correlations(taxon_idx=1, tax_level="genus", logratio="alr")
-get_all_vs_one_correlations <- function(taxon_idx, tax_level="genus", logratio="alr", Sigmas=NULL) {
+#' interactions <- get_all_vs_one_correlations(taxon_idx=1, tax_level="ASV", logratio="alr")
+get_all_vs_one_correlations <- function(taxon_idx, tax_level="ASV", logratio="alr", Sigmas=NULL) {
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
   if(logratio == "alr") {
     coordinate_number <- model_list$D-1
@@ -70,8 +70,8 @@ get_all_vs_one_correlations <- function(taxon_idx, tax_level="genus", logratio="
 #' @return correlation matrix of dimensions {number of hosts} x {number of unique interactions between logratio taxa}
 #' @export
 #' @examples
-#' interactions <- get_pairwise_correlations(tax_level="genus", logratio="alr")
-get_pairwise_correlations <- function(tax_level="genus", logratio="alr", Sigmas=NULL) {
+#' interactions <- get_pairwise_correlations(tax_level="ASV", logratio="alr")
+get_pairwise_correlations <- function(tax_level="ASV", logratio="alr", Sigmas=NULL) {
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
   if(logratio == "alr") {
     coordinate_number <- model_list$D-1
@@ -123,9 +123,9 @@ get_pairwise_correlations <- function(tax_level="genus", logratio="alr", Sigmas=
 #' @import driver
 #' @export
 #' @examples
-#' Sigmas <- load_MAP_estimates(tax_level="genus", logratio="clr")
-#' plot_interaction_heatmap(tax_level="genus", logratio="clr", Sigmas=Sigmas)
-plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas=NULL, taxon_idx=NULL, show_plot=FALSE) {
+#' Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="clr")
+#' plot_interaction_heatmap(tax_level="ASV", logratio="clr", Sigmas=Sigmas)
+plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=NULL, taxon_idx=NULL, show_plot=FALSE) {
   if(logratio != "alr" & logratio != "clr") {
     stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
   }
@@ -184,8 +184,8 @@ plot_interaction_heatmap <- function(tax_level="genus", logratio = "alr", Sigmas
 #' @import phyloseq
 #' @export
 #' @examples
-#' get_universal_interactions(tax_level="genus")
-get_universal_interactions <- function(tax_level="genus", show_plot=FALSE, order_by="abundance") {
+#' get_universal_interactions(tax_level="ASV")
+get_universal_interactions <- function(tax_level="ASV", show_plot=FALSE, order_by="abundance") {
   if(order_by != "abundance" & order_by != "taxonomy") {
     stop(paste0("Invalid interaction ordering '",order_by,"'!\n"))
   }

@@ -11,8 +11,8 @@
 #' @import stray
 #' @export
 #' @examples
-#' calc_posterior_distances(tax_level="genus", which_measure="Sigma", MAP=FALSE)
-calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", which_distance="Riemannian", MAP=FALSE) {
+#' calc_posterior_distances(tax_level="ASV", which_measure="Sigma", MAP=FALSE)
+calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma", which_distance="Riemannian", MAP=FALSE) {
   # grab all fitted models
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=MAP)
   P <- model_list$D - 1 # ALR
@@ -91,8 +91,8 @@ calc_posterior_distances <- function(tax_level="genus", which_measure="Sigma", w
 #' @import stray
 #' @export
 #' @examples
-#' calc_posterior_distances_row(tax_level="genus", sample_idx=1)
-calc_posterior_distance_row <- function(tax_level="genus", sample_idx=1) {
+#' calc_posterior_distances_row(tax_level="ASV", sample_idx=1)
+calc_posterior_distance_row <- function(tax_level="ASV", sample_idx=1) {
   # grab all fitted models
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=FALSE)
   P <- model_list$D - 1 # ALR
@@ -143,8 +143,8 @@ calc_posterior_distance_row <- function(tax_level="genus", sample_idx=1) {
 #' @import tidyr
 #' @export
 #' @examples
-#' embed_posteriors(tax_level="genus", which_measure="Sigma", MAP=FALSE)
-embed_posteriors <- function(tax_level="genus", which_measure="Sigma", MAP=FALSE) {
+#' embed_posteriors(tax_level="ASV", which_measure="Sigma", MAP=FALSE)
+embed_posteriors <- function(tax_level="ASV", which_measure="Sigma", MAP=FALSE) {
   if(MAP) {
     dist_filename <- file.path("output",paste0(which_measure,"_distance_",tax_level,"_MAP.rds"))
   } else {
@@ -242,8 +242,8 @@ load_outcomes <- function(hosts) {
 #' @export
 #' @examples
 #' centroids <- readRDS(file.path("output","plots","genus","Sigma_ordination_centroids.rds"))
-#' labelled_centoids <- get_other_labels(centroids, tax_level="genus", annotation="group", MAP=FALSE)
-get_other_labels <- function(centroids, tax_level="genus", annotation="group", MAP=FALSE) {
+#' labelled_centoids <- get_other_labels(centroids, tax_level="ASV", annotation="group", MAP=FALSE)
+get_other_labels <- function(centroids, tax_level="ASV", annotation="group", MAP=FALSE) {
   # pull unique hosts from centroids
   hosts <<- unique(as.character(centroids$labels))
   data <- load_data(tax_level)
@@ -388,7 +388,7 @@ get_other_labels <- function(centroids, tax_level="genus", annotation="group", M
 #' centroids <- readRDS(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
 #' labelled_centroids <- get_other_labels(centroids=centroids, tax_level=tax_level, annotation=annotation, MAP=MAP)
 #' plot_axes(coordinates=labelled_centroids, tax_level=tax_level, axis1=1, axis2=2, annotation=annotation, MAP=MAP)
-plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, axis2=2, annotation="host",
+plot_axes <- function(coordinates=NULL, centroids, tax_level="ASV", axis1=1, axis2=2, annotation="host",
                       MAP=FALSE, show_plot=FALSE) {
   if(annotation == "host") {
     point_size <- 1
@@ -447,8 +447,8 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="genus", axis1=1, a
 #' @import ggplot2
 #' @export
 #' @examples
-#' plot_ordination(tax_level="genus", which_measure="Sigma", annotation="host", MAP=FALSE)
-plot_ordination <- function(tax_level="genus", which_measure="Sigma", annotation="host",
+#' plot_ordination(tax_level="ASV", which_measure="Sigma", annotation="host", MAP=FALSE)
+plot_ordination <- function(tax_level="ASV", which_measure="Sigma", annotation="host",
                             MAP=FALSE, show_plot=FALSE) {
   if(annotation == "host") {
     if(MAP) {
@@ -516,8 +516,8 @@ make_posterior_predictions <- function(X, fit) {
 #' @import driver
 #' @export
 #' @examples
-#' plot_MAP_covariance(host="ZIZ", tax_level="genus")
-plot_MAP_covariance <- function(host, tax_level="genus", show_plot=FALSE) {
+#' plot_MAP_covariance(host="ZIZ", tax_level="ASV")
+plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
   fit_filename <- file.path("output","model_fits",paste0(tax_level,"_MAP"),paste0(host,"_bassetfit.rds"))
   if(!file.exists(fit_filename)) {
     stop(paste0("MAP model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
@@ -562,8 +562,8 @@ plot_MAP_covariance <- function(host, tax_level="genus", show_plot=FALSE) {
 #' @import dplyr
 #' @export
 #' @examples
-#' plot_posterior_predictive(host="ZIB", tax_level="genus", predict_coords=c(1,2,3))
-plot_posterior_predictive <- function(host, tax_level="genus", predict_coords=NULL, logratio="clr", show_plot=FALSE) {
+#' plot_posterior_predictive(host="ZIB", tax_level="ASV", predict_coords=c(1,2,3))
+plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL, logratio="clr", show_plot=FALSE) {
   fit_filename <- file.path("output","model_fits",tax_level,paste0(host,"_bassetfit.rds"))
   if(!file.exists(fit_filename)) {
     stop(paste0("Model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
