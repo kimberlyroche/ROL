@@ -57,6 +57,7 @@ load_data <- function(tax_level="ASV", host_sample_min=75, count_threshold=5, sa
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @return phyloseq object
 #' @import phyloseq
+#' @import dplyr
 #' @importFrom phyloseq tax_glom
 #' @export
 #' @examples
@@ -76,7 +77,17 @@ agglomerate_data <- function(tax_level="ASV") {
   } else {
     stop(paste0("Input data file ",in_filename," does not exist!\n"))
   }
-  agglomerated_data <- tax_glom(data, taxrank=tax_level, NArm=FALSE)
+
+  # first collapse things not resolved to this level
+  tax <- tax_table(data)@.Data
+  merge_indices <- as.vector(is.na(tax[,which(colnames(tax) == tax_level)]))
+  merged_data <- merge_taxa(data, which(merge_indices == TRUE), 1)
+  merged_into_idx <- which(merge_indices == TRUE)[1] # this is the index of the new "other"
+  tax_table(merged_data)@.Data[merged_into_idx,] <- rep("other", 7)
+
+  agglomerated_data <- tax_glom(merged_data, taxrank=tax_level, NArm=FALSE)
+
+  # append the filtered out stuff as other
   saveRDS(agglomerated_data, file=out_filename)
   return(agglomerated_data)
 }
@@ -131,10 +142,10 @@ filter_data <- function(data, tax_level=NULL, count_threshold=5, sample_threshol
     cat("Collapsed ",round((total_counts-sum(retained_counts))/total_counts, 3)*100,"% of total counts\n")
     # calculate proportion zeros
     cat("Percent zeros is ",round(sum(retained_counts == 0)/(nrow(retained_counts)*ncol(retained_counts)), 3)*100,"%\n")
-    # collapse all into first index; we'll label this domain : species "Collapsed"
+    # collapse all into first index; we'll label this domain : species "other"
     collapsed_into_idx <- which(collapse_indices == TRUE)[1]
     cat(paste0("Other category is index ",collapsed_into_idx,"\n"))
-    tax_table(merged_data)@.Data[collapsed_into_idx,] <- rep("Collapsed", 7)
+    tax_table(merged_data)@.Data[collapsed_into_idx,] <- rep("other", 7)
     # save results
     saveRDS(merged_data, file=filename)
     return(merged_data)
