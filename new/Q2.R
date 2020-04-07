@@ -1,3 +1,4 @@
+library(ROL)
 library(ggplot2)
 library(gridExtra)
 library(driver)
@@ -8,6 +9,8 @@ model_list <- get_fitted_model_list(tax_level="ASV", MAP=TRUE)
 baselines <- matrix(NA, model_list$D-1, length(model_list$model_list))
 for(i in 1:length(model_list$model_list)) {
   data <- readRDS(model_list$model_list[i])
+  props <- alrInv_array(data$alr_ys, coords=2)
+  ilr_ys <- ilr_array(props, parts=2)
   baselines[,i] <- colMeans(data$alr_ys)
 }
 baseline_dist <- as.matrix(dist(t(baselines)))
@@ -37,7 +40,7 @@ if(FALSE) {
 
 n_hosts <- length(model_list$hosts)
 unique_combos <- combn(1:n_hosts, 2)
-n_unique_combos <- ncow(unique_combos)
+n_unique_combos <- ncol(unique_combos)
 
 quantile_mat.baseline <- matrix(NA, n_hosts, n_hosts)
 quantile_mat.dynamics <- matrix(NA, n_hosts, n_hosts)
@@ -47,10 +50,10 @@ for(i in 1:n_hosts) {
     if(i < j) {
       # only consider unique combos
       distance <- baseline_dist[i,j]
-      distance.quantile <- sum(baseline_distro < distance)/unique_combos
+      distance.quantile <- sum(baseline_distro < distance)/n_unique_combos
       quantile_mat.baseline[i,j] <- distance.quantile
       distance <- dynamics_dist[i,j]
-      distance.quantile <- sum(dynamics_distro < distance)/unique_combos
+      distance.quantile <- sum(dynamics_distro < distance)/n_unique_combos
       quantile_mat.dynamics[i,j] <- distance.quantile
     }
   }

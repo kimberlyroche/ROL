@@ -2,7 +2,7 @@ library(ROL)
 library(matrixsampling)
 library(driver)
 library(stray)
-library(ggplot)
+library(ggplot2)
 library(RColorBrewer)
 library(vegan)
 library(dplyr)
@@ -25,18 +25,19 @@ for(i in 1:n_hosts) {
   if(is.null(D)) {
     D <- fitted_model$D
   }
-  fitted_model.clr <- to_clr(fitted_model)
+  fitted_model.ilr <- to_ilr(fitted_model)
   prop_ys <- alrInv_array(data$alr_ys, coord=2) # returns samples x taxa orientation
-  clr_ys <- clr_array(prop_ys, 2)
-  baseline <- colMeans(clr_ys)
+  ilr_ys <- ilr_array(prop_ys, parts=2)
+  baseline <- colMeans(ilr_ys)
   # this is a ridiculous means of smoothing over numeric issues with these estimates
   # that give some of the dynamics matrices vanishingly small imaginary eigenvalues
   # or tiny fluctuations that make them not-perfectly-symmetric
-  dynamics_sq <- chol(fitted_model.clr$Sigma[,,1] + diag(D)*1e-08)
-  dynamics <- t(dynamics_sq)%*%dynamics_sq
+  # dynamics_sq <- chol(fitted_model.ilr$Sigma[,,1] + diag(D)*1e-08)
+  # dynamics <- t(dynamics_sq)%*%dynamics_sq
+  dynamics <- (fitted_model.ilr$Sigma[,,1] + t(fitted_model.ilr$Sigma[,,1]))/2
   simulated_samples[[host]] <- cbind(baseline,
     rmatrixnormal(1,
-      matrix(baseline, D, n_samples),
+      matrix(baseline, D-1, n_samples),
       dynamics,
       diag(n_samples)
     )[,,1]
@@ -68,7 +69,7 @@ if(FALSE) {
 }
 
 sample_labels <- c()
-embed_matrix <- matrix(NA, n_hosts*(n_samples + 1), D)
+embed_matrix <- matrix(NA, n_hosts*(n_samples + 1), D-1)
 for(i in 1:n_hosts) {
   host <- hosts[i]
   sample_labels <- c(sample_labels, rep(host, n_samples + 1))
@@ -120,4 +121,3 @@ obj <- adonis(distances ~ labels, data=group_labels, permutations=1000)
 # report r-squared
 R2 <- obj$aov.tab$R2
 cat("Group r-squared:",round(R2[1], 3),"\n")
-
