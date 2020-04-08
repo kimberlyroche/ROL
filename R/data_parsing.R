@@ -81,9 +81,25 @@ agglomerate_data <- function(tax_level="ASV") {
   # first collapse things not resolved to this level
   tax <- tax_table(data)@.Data
   merge_indices <- as.vector(is.na(tax[,which(colnames(tax) == tax_level)]))
+
+  # 2020/04/08: a curious bug crops up in phyloseq's merge_taxa here:
+  #   Error in x[keepIndex, bad_ranks] <- NA_character_ :
+  #   ALTSTRING classes must provide a Set_elt method
+  #
+  # this occurs where phyloseq is trying to label as NA the taxonomic labels of
+  # taxa it's subsequently going to merge; not sure how/why/when exactly the issue
+  # arises but one workaround is to proactively label as NA all taxa we're going
+  # to merge before we give them to phyloseq; this involves some weird type
+  # changing
+  # to do: submit reprex and bug report to phyloseq devs!
+
+  altered_tax <- as.data.frame(tax_table(data)@.Data, stringsAsFactors=FALSE)
+  altered_tax[merge_indices,] <- rep("other", sum(merge_indices))
+  tax_table(data)@.Data <- as.matrix(altered_tax)
+
   merged_data <- merge_taxa(data, which(merge_indices == TRUE), 1)
   merged_into_idx <- which(merge_indices == TRUE)[1] # this is the index of the new "other"
-  tax_table(merged_data)@.Data[merged_into_idx,] <- rep("other", 7)
+  # tax_table(merged_data)@.Data[merged_into_idx,] <- rep("other", 7)
 
   agglomerated_data <- tax_glom(merged_data, taxrank=tax_level, NArm=FALSE)
 
@@ -136,7 +152,14 @@ filter_data <- function(data, tax_level=NULL, count_threshold=5, sample_threshol
     #   collapse_indices[non_bacterial_taxa] <- TRUE
     # }
     # perform the collapsing via phyloseq
-    merged_data <- merge_taxa(data, which(collapse_indices == TRUE), 1)
+    # find and add the index of "other" if it already exists
+    other_idx <- as.numeric(which(tt[,colnames(tt) == "domain"] == "other"))
+    if(length(other_idx) > 0) {
+      collapse_indices[other_idx] <- TRUE
+      merged_data <- merge_taxa(data, which(collapse_indices == TRUE), other_idx)
+    } else {
+      merged_data <- merge_taxa(data, which(collapse_indices == TRUE), 1)
+    }
     retained_counts <- count_table[,!collapse_indices]
     cat(paste0("Retaining ",sum(collapse_indices == FALSE)," / ",ntaxa(data)," taxa\n"))
     cat("Collapsed ",round((total_counts-sum(retained_counts))/total_counts, 3)*100,"% of total counts\n")
@@ -145,7 +168,9 @@ filter_data <- function(data, tax_level=NULL, count_threshold=5, sample_threshol
     # collapse all into first index; we'll label this domain : species "other"
     collapsed_into_idx <- which(collapse_indices == TRUE)[1]
     cat(paste0("Other category is index ",collapsed_into_idx,"\n"))
-    tax_table(merged_data)@.Data[collapsed_into_idx,] <- rep("other", 7)
+    if(length(other_idx) == 0) {
+      tax_table(merged_data)@.Data[collapsed_into_idx,] <- rep("other", 7)
+    }
     # save results
     saveRDS(merged_data, file=filename)
     return(merged_data)
