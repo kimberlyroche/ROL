@@ -4,6 +4,7 @@
 #' @param which_measure estimated object to embed, either Lambda or Sigma
 #' @param which_distance ignored for Lambda; for Sigma allowable options are "Riemannian" (default) or "Euclidean"
 #' @param MAP use MAP estimate model output instead of full posterior output
+#' @param spike_in copy and permute the samples and calculate distances to these too, so as to give upper bound on distances
 #' @details Distance matrix between posterior samples saved to designated output directory. Saves
 #' a list containing distance matrix and labels of each row or column (by host).
 #' @return NULL
@@ -12,7 +13,8 @@
 #' @export
 #' @examples
 #' calc_posterior_distances(tax_level="ASV", which_measure="Sigma", MAP=FALSE)
-calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma", which_distance="Riemannian", MAP=FALSE) {
+calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
+  which_distance="Riemannian", MAP=FALSE, spike_in=FALSE) {
   # grab all fitted models
   model_list <- get_fitted_model_list(tax_level=tax_level, MAP=MAP)
   P <- model_list$D - 1 # ALR
@@ -21,7 +23,12 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma", whi
   # initialize samples matrix
   if(which_measure == "Sigma") {
     if(which_distance == "Riemannian") {
-      all_samples <- matrix(NA, P, P*n_samples*n_hosts)
+      if(MAP & spike_in) {
+        # make room for 2x the samples
+        all_samples <- matrix(NA, P, P*n_samples*2*n_hosts)
+      } else {
+        all_samples <- matrix(NA, P, P*n_samples*n_hosts)
+      }
     } else {
       all_samples <- matrix(NA, (P^2)/2 + P/2, n_samples*n_hosts)
     }
@@ -44,7 +51,15 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma", whi
     if(which_measure == "Sigma") {
       if(which_distance == "Riemannian") {
         Sigma <- Sigma[,,1:n_samples]
-        all_samples[,((i-1)*P*n_samples+1):(i*P*n_samples)] <- Sigma
+        # symmetrize this guy
+        Sigma <- (Sigma + t(Sigma))/2
+        if(MAP & spike_in) {
+          all_samples[,((i-1)*P*n_samples*2+1):(i*P*n_samples*2)] <- Sigma
+          reorder <- sample(1:nrow(Sigma))
+          permuted_Sigma <- Sigma[reorder,reorder]
+        } else {
+          all_samples[,((i-1)*P*n_samples+1):(i*P*n_samples)] <- Sigma
+        }
       } else {
         host_offset <- (i-1)*n_samples
         for(j in 1:n_samples) {
@@ -62,7 +77,11 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma", whi
   
   save_dir <- check_output_dir(c("output"))
   if(MAP) {
-    dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,"_MAP.rds"))
+    if(spike_in) {
+      dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,"_MAP.rds"))
+    } else {
+      dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,"_MAP_spikein.rds"))
+    }
   } else {
     dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,".rds"))
   }
