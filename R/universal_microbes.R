@@ -119,13 +119,14 @@ get_pairwise_correlations <- function(tax_level="ASV", logratio="alr", Sigmas=NU
 #' @param Sigmas optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded
 #' @param taxon_idx the logratio coordinate to render correlations against; if NULL, render all pairwise correlations
 #' @param show_plot show() plot in addition to rendering it to a file
-#' @return NULL
+#' @return NULL or heatmap matrix
 #' @import driver
 #' @export
 #' @examples
 #' Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="clr")
 #' plot_interaction_heatmap(tax_level="ASV", logratio="clr", Sigmas=Sigmas)
-plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=NULL, taxon_idx=NULL, show_plot=FALSE) {
+plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=NULL,
+                                     taxon_idx=NULL, show_plot=FALSE, return_matrix=FALSE) {
   if(logratio != "alr" & logratio != "clr") {
     stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
   }
@@ -155,6 +156,7 @@ plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=N
     save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
     ggsave(file.path(save_dir,paste0("microbe_pair_correlations_",logratio,".png")),
            p, units="in", dpi=150, height=5, width=15)
+    return(interactions.reordered)
   } else {
     interactions <- get_all_vs_one_correlations(taxon_idx, tax_level=tax_level, logratio=logratio, Sigmas=Sigmas)
     
