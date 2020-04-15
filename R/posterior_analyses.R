@@ -10,6 +10,7 @@
 #' @return NULL
 #' @import driver
 #' @import stray
+#' @import matrixsampling
 #' @export
 #' @examples
 #' calc_posterior_distances(tax_level="ASV", which_measure="Sigma", MAP=FALSE)
@@ -54,9 +55,15 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
         # symmetrize this guy
         Sigma <- (Sigma + t(Sigma))/2
         if(MAP & spike_in) {
-          all_samples[,((i-1)*P*n_samples*2+1):(i*P*n_samples*2)] <- Sigma
-          reorder <- sample(1:nrow(Sigma))
-          permuted_Sigma <- Sigma[reorder,reorder]
+          # here we know n_samples == 1
+          offset1 <- (i-1)*P*2+1
+          offset2 <- offset1 + P - 1
+          all_samples[,offset1:offset2] <- Sigma
+          upsilon <- P + 2
+          random_Sigma <- rinvwishart(1, upsilon, Sigma*(upsilon - P - 1))[,,1]
+          offset3 <- offset2 + 1
+          offset4 <- offset3 + P - 1
+          all_samples[,offset3:offset4] <- random_Sigma
         } else {
           all_samples[,((i-1)*P*n_samples+1):(i*P*n_samples)] <- Sigma
         }
@@ -67,7 +74,11 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
           all_samples[,(host_offset+j)] <- c(Sigma_sample[upper.tri(Sigma_sample, diag=T)])
         }
       }
-      host_labels <- c(host_labels, rep(model_list$hosts[i], n_samples))
+      if(MAP & spike_in) {
+        host_labels <- c(host_labels, c(model_list$hosts[i], "permuted"))
+      } else {
+        host_labels <- c(host_labels, rep(model_list$hosts[i], n_samples))
+      }
     } else {
       collLambda <- t(apply(Lambda, 3, function(X) { apply(X, 1, mean) })) # n_samples x P
       all_samples[((i-1)*n_samples+1):(i*n_samples),] <- collLambda
