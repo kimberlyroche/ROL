@@ -78,9 +78,9 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
   save_dir <- check_output_dir(c("output"))
   if(MAP) {
     if(spike_in) {
-      dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,"_MAP.rds"))
-    } else {
       dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,"_MAP_spikein.rds"))
+    } else {
+      dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,"_MAP.rds"))
     }
   } else {
     dist_filename <- file.path(save_dir,paste0(which_measure,"_distance_",tax_level,".rds"))
@@ -155,6 +155,7 @@ calc_posterior_distance_row <- function(tax_level="ASV", sample_idx=1) {
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param which_measure estimated object to embed, either Lambda or Sigma
 #' @param MAP use MAP estimate model output instead of full posterior output
+#' @param spike_in copy and permute the samples and calculate distances to these too, so as to give upper bound on distances
 #' @details Distance matrix between posterior samples must be present in designated output directory
 #' @return NULL
 #' @import ggplot2
@@ -163,9 +164,13 @@ calc_posterior_distance_row <- function(tax_level="ASV", sample_idx=1) {
 #' @export
 #' @examples
 #' embed_posteriors(tax_level="ASV", which_measure="Sigma", MAP=FALSE)
-embed_posteriors <- function(tax_level="ASV", which_measure="Sigma", MAP=FALSE) {
+embed_posteriors <- function(tax_level="ASV", which_measure="Sigma", MAP=FALSE, spike_in=FALSE) {
   if(MAP) {
-    dist_filename <- file.path("output",paste0(which_measure,"_distance_",tax_level,"_MAP.rds"))
+    if(spike_in) {
+      dist_filename <- file.path("output",paste0(which_measure,"_distance_",tax_level,"_MAP_spikein.rds"))
+    } else {
+      dist_filename <- file.path("output",paste0(which_measure,"_distance_",tax_level,"_MAP.rds"))
+    }
   } else {
     dist_filename <- file.path("output",paste0(which_measure,"_distance_",tax_level,".rds"))
   }
@@ -199,7 +204,11 @@ embed_posteriors <- function(tax_level="ASV", which_measure="Sigma", MAP=FALSE) 
   }
   if(MAP) {
     save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
-    saveRDS(df, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination.rds")))
+    if(spike_in) {
+      saveRDS(df, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination_spikein.rds")))
+    } else {
+      saveRDS(df, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination.rds")))
+    }
   } else {
     save_dir <- check_output_dir(c("output","plots",tax_level))
     saveRDS(df, file.path("output","plots",tax_level,paste0(which_measure,"_ordination.rds")))
@@ -223,7 +232,11 @@ embed_posteriors <- function(tax_level="ASV", which_measure="Sigma", MAP=FALSE) 
   df_centroids <- df_centroids[,colnames(df)]
   
   if(MAP) {
-    saveRDS(df_centroids, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination_centroids.rds")))
+    if(spike_in) {
+      saveRDS(df_centroids, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination_centroids_spikein.rds")))
+    } else {
+      saveRDS(df_centroids, file.path("output","plots",paste0(tax_level,"_MAP"),paste0(which_measure,"_ordination_centroids.rds")))
+    }
   } else {
     saveRDS(df_centroids, file.path("output","plots",tax_level,paste0(which_measure,"_ordination_centroids.rds")))
   }
@@ -461,6 +474,7 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="ASV", axis1=1, axi
 #' @param which_measure estimated object to visualize, either Lambda or Sigma
 #' @param annotation label to assign (e.g. individual)
 #' @param MAP use MAP estimate model output instead of full posterior output
+#' @param spike_in copy and permute the samples and calculate distances to these too, so as to give upper bound on distances
 #' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
 #' @return NULL
 #' @import ggplot2
@@ -468,11 +482,16 @@ plot_axes <- function(coordinates=NULL, centroids, tax_level="ASV", axis1=1, axi
 #' @examples
 #' plot_ordination(tax_level="ASV", which_measure="Sigma", annotation="host", MAP=FALSE)
 plot_ordination <- function(tax_level="ASV", which_measure="Sigma", annotation="host",
-                            MAP=FALSE, show_plot=FALSE) {
+                            MAP=FALSE, spike_in=FALSE, show_plot=FALSE) {
   if(annotation == "host") {
     if(MAP) {
-      coordinates <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination.rds"))
-      centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+      if(spike_in) {
+        coordinates <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_spikein.rds"))
+        centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids_spikein.rds"))
+      } else {
+        coordinates <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination.rds"))
+        centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+      }
     } else {
       coordinates <- read_file(file.path("output","plots",tax_level,"Sigma_ordination.rds"))
       centroids <- read_file(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
@@ -485,7 +504,11 @@ plot_ordination <- function(tax_level="ASV", which_measure="Sigma", annotation="
     }
   } else {
     if(MAP) {
-      centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+      if(spike_in) {
+        centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids_spikein.rds"))
+      } else {
+        centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
+      }
     } else {
       centroids <- read_file(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
     }
