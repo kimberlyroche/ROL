@@ -4,8 +4,9 @@
 \alias{plot_interaction_heatmap}
 \title{Plot heatmap over all pairwise (MAP) correlations between microbes at designated taxonomic level}
 \usage{
-plot_interaction_heatmap(tax_level = "genus", logratio = "alr",
-  Sigmas = NULL, taxon_idx = NULL, show_plot = FALSE)
+plot_interaction_heatmap(tax_level = "ASV", logratio = "alr",
+  Sigmas = NULL, taxon_idx = NULL, show_plot = FALSE,
+  return_matrix = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -18,10 +19,13 @@ plot_interaction_heatmap(tax_level = "genus", logratio = "alr",
 
 \item{show_plot}{show() plot in addition to rendering it to a file}
 }
+\value{
+NULL or heatmap matrix
+}
 \description{
 Plot heatmap over all pairwise (MAP) correlations between microbes at designated taxonomic level
 }
 \examples{
-Sigmas <- load_MAP_estimates(tax_level="genus", logratio="clr")
-plot_interaction_heatmap(tax_level="genus", logratio="clr", Sigmas=Sigmas)
+Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="clr")
+plot_interaction_heatmap(tax_level="ASV", logratio="clr", Sigmas=Sigmas)
 }

@@ -2,9 +2,9 @@
 % Please edit documentation in R/universal_microbes.R
 \name{load_MAP_estimates}
 \alias{load_MAP_estimates}
-\title{Calculate Riemannian distances between all posterior samples}
+\title{Load MAP estimates of microbial covariances from fitted models at the desired taxonomic level}
 \usage{
-load_MAP_estimates(tax_level = "genus", logratio = "alr")
+load_MAP_estimates(tax_level = "ASV", logratio = "alr")
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -15,8 +15,8 @@ load_MAP_estimates(tax_level = "genus", logratio = "alr")
 list of MAP covariance estimates indexed by host short name
 }
 \description{
-Calculate Riemannian distances between all posterior samples
+Load MAP estimates of microbial covariances from fitted models at the desired taxonomic level
 }
 \examples{
-Sigmas <- load_MAP_estimates(tax_level="genus", logratio="alr")
+Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="alr")
 }

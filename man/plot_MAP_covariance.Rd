@@ -4,7 +4,7 @@
 \alias{plot_MAP_covariance}
 \title{Plot MAP covariance matrix for designated host}
 \usage{
-plot_MAP_covariance(host, tax_level = "genus", show_plot = FALSE)
+plot_MAP_covariance(host, tax_level = "ASV", show_plot = FALSE)
 }
 \arguments{
 \item{host}{host short name (e.g. ACA)}
@@ -20,5 +20,5 @@ Plot MAP covariance matrix for designated host
 Output are png files of covariance and correlation matrices.
 }
 \examples{
-plot_MAP_covariance(host="ZIZ", tax_level="genus")
+plot_MAP_covariance(host="ZIZ", tax_level="ASV")
 }

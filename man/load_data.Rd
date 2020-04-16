@@ -4,13 +4,11 @@
 \alias{load_data}
 \title{Load ABRP 16S data and filter out low abundance taxa}
 \usage{
-load_data(tax_level = "genus", replicates = TRUE,
-  host_sample_min = 40, count_threshold = 5, sample_threshold = 0.2)
+load_data(tax_level = "ASV", host_sample_min = 75,
+  count_threshold = 5, sample_threshold = 0.2)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
-
-\item{replicates}{include replicates}
 
 \item{host_sample_min}{minimum sample number for host inclusion in the filtered data set}
 
@@ -29,5 +27,5 @@ Together count_threshold and sample_threshold specify a minimum representation f
 Taxa below these observed thresholds will be grouped together into a category "Other."
 }
 \examples{
-data <- load_data(tax_level="genus", replicates=TRUE, host_sample_min=40, count_threshold=5, sample_threshold=0.2)
+data <- load_data(tax_level="ASV", host_sample_min=75, count_threshold=5, sample_threshold=0.2)
 }

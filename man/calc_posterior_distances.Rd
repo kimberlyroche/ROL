@@ -4,8 +4,8 @@
 \alias{calc_posterior_distances}
 \title{Calculate distances between all posterior samples of either Sigma or Lambda}
 \usage{
-calc_posterior_distances(tax_level = "genus", which_measure = "Sigma",
-  which_distance = "Riemannian", MAP = FALSE)
+calc_posterior_distances(tax_level = "ASV", which_measure = "Sigma",
+  which_distance = "Riemannian", MAP = FALSE, spike_in = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -15,6 +15,8 @@ calc_posterior_distances(tax_level = "genus", which_measure = "Sigma",
 \item{which_distance}{ignored for Lambda; for Sigma allowable options are "Riemannian" (default) or "Euclidean"}
 
 \item{MAP}{use MAP estimate model output instead of full posterior output}
+
+\item{spike_in}{copy and permute the samples and calculate distances to these too, so as to give upper bound on distances}
 }
 \description{
 Calculate distances between all posterior samples of either Sigma or Lambda
@@ -24,5 +26,5 @@ Distance matrix between posterior samples saved to designated output directory. 
 a list containing distance matrix and labels of each row or column (by host).
 }
 \examples{
-calc_posterior_distances(tax_level="genus", which_measure="Sigma", MAP=FALSE)
+calc_posterior_distances(tax_level="ASV", which_measure="Sigma", MAP=FALSE)
 }

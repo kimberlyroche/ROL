@@ -4,12 +4,10 @@
 \alias{agglomerate_data}
 \title{Agglomerate ABRP 16S data to desired taxonomic level}
 \usage{
-agglomerate_data(tax_level = "genus", replicates = TRUE)
+agglomerate_data(tax_level = "ASV")
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
-
-\item{replicates}{include replicates}
 }
 \value{
 phyloseq object
@@ -18,5 +16,5 @@ phyloseq object
 Agglomerate ABRP 16S data to desired taxonomic level
 }
 \examples{
-data <- agglomerate_data(tax_level="genus", replicates=TRUE)
+data <- agglomerate_data(tax_level="ASV")
 }

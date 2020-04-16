@@ -75,7 +75,7 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
         }
       }
       if(MAP & spike_in) {
-        host_labels <- c(host_labels, c(model_list$hosts[i], "permuted"))
+        host_labels <- c(host_labels, c(model_list$hosts[i], "random"))
       } else {
         host_labels <- c(host_labels, rep(model_list$hosts[i], n_samples))
       }
@@ -98,7 +98,11 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
   }
   if(which_measure == "Sigma") {
     if(which_distance == "Riemannian") {
-      distance_mat <- Riemann_dist_samples(all_samples, n_hosts, n_samples)
+      if(MAP & spike_in) {
+        distance_mat <- Riemann_dist_samples(all_samples, n_hosts, n_samples*2)
+      } else {
+        distance_mat <- Riemann_dist_samples(all_samples, n_hosts, n_samples)
+      }
     } else {
       distance_mat <- as.matrix(dist(t(all_samples)))
     }
@@ -515,11 +519,8 @@ plot_ordination <- function(tax_level="ASV", which_measure="Sigma", annotation="
     }
   } else {
     if(MAP) {
-      if(spike_in) {
-        centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids_spikein.rds"))
-      } else {
-        centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
-      }
+      # note: ignore "spike-in" directive if we're not labeling by host
+      centroids <- read_file(file.path("output","plots",paste0(tax_level,"_MAP"),"Sigma_ordination_centroids.rds"))
     } else {
       centroids <- read_file(file.path("output","plots",tax_level,"Sigma_ordination_centroids.rds"))
     }

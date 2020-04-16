@@ -4,7 +4,7 @@
 \alias{get_pairwise_correlations}
 \title{Get all pairwise (MAP) correlations between microbes at designated taxonomic level}
 \usage{
-get_pairwise_correlations(tax_level = "genus", logratio = "alr",
+get_pairwise_correlations(tax_level = "ASV", logratio = "alr",
   Sigmas = NULL)
 }
 \arguments{
@@ -23,5 +23,5 @@ correlation matrix of dimensions {number of hosts} x {number of unique interacti
 Get all pairwise (MAP) correlations between microbes at designated taxonomic level
 }
 \examples{
-interactions <- get_pairwise_correlations(tax_level="genus", logratio="alr")
+interactions <- get_pairwise_correlations(tax_level="ASV", logratio="alr")
 }

@@ -4,7 +4,7 @@
 \alias{get_universal_interactions}
 \title{Identify and plot "universal" interactions at the designated taxonomic level}
 \usage{
-get_universal_interactions(tax_level = "genus", show_plot = FALSE,
+get_universal_interactions(tax_level = "ASV", show_plot = FALSE,
   order_by = "abundance")
 }
 \arguments{
@@ -25,5 +25,5 @@ Correlations are evaluated in the CLR. A threshold of 0.4 will identify pairs of
 taxa with median correlation of > 0.4 or < -0.4. Pairs are rendered as bigraphs.
 }
 \examples{
-get_universal_interactions(tax_level="genus")
+get_universal_interactions(tax_level="ASV")
 }

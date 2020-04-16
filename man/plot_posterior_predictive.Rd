@@ -4,7 +4,7 @@
 \alias{plot_posterior_predictive}
 \title{Plot posterior predictive intervals of Eta (denoised ALR abundances) over observed time series for designated host}
 \usage{
-plot_posterior_predictive(host, tax_level = "genus",
+plot_posterior_predictive(host, tax_level = "ASV",
   predict_coords = NULL, logratio = "clr", show_plot = FALSE)
 }
 \arguments{
@@ -25,5 +25,5 @@ Plot posterior predictive intervals of Eta (denoised ALR abundances) over observ
 Output are png files of predicted series intervals.
 }
 \examples{
-plot_posterior_predictive(host="ZIB", tax_level="genus", predict_coords=c(1,2,3))
+plot_posterior_predictive(host="ZIB", tax_level="ASV", predict_coords=c(1,2,3))
 }

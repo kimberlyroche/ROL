@@ -4,7 +4,7 @@
 \alias{get_all_vs_one_correlations}
 \title{Get correlations between one microbe and all others at designated taxonomic level}
 \usage{
-get_all_vs_one_correlations(taxon_idx, tax_level = "genus",
+get_all_vs_one_correlations(taxon_idx, tax_level = "ASV",
   logratio = "alr", Sigmas = NULL)
 }
 \arguments{
@@ -23,5 +23,5 @@ correlation matrix of dimensions {number of hosts} x {number of logratio taxa - 
 Get correlations between one microbe and all others at designated taxonomic level
 }
 \examples{
-interactions <- get_all_vs_one_correlations(taxon_idx=1, tax_level="genus", logratio="alr")
+interactions <- get_all_vs_one_correlations(taxon_idx=1, tax_level="ASV", logratio="alr")
 }

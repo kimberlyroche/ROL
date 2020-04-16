@@ -4,8 +4,8 @@
 \alias{embed_posteriors}
 \title{Embeds posterior samples using MDS and a pre-calculated distance matrix}
 \usage{
-embed_posteriors(tax_level = "genus", which_measure = "Sigma",
-  MAP = FALSE)
+embed_posteriors(tax_level = "ASV", which_measure = "Sigma",
+  MAP = FALSE, spike_in = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -13,6 +13,8 @@ embed_posteriors(tax_level = "genus", which_measure = "Sigma",
 \item{which_measure}{estimated object to embed, either Lambda or Sigma}
 
 \item{MAP}{use MAP estimate model output instead of full posterior output}
+
+\item{spike_in}{copy and permute the samples and calculate distances to these too, so as to give upper bound on distances}
 }
 \description{
 Embeds posterior samples using MDS and a pre-calculated distance matrix
@@ -21,5 +23,5 @@ Embeds posterior samples using MDS and a pre-calculated distance matrix
 Distance matrix between posterior samples must be present in designated output directory
 }
 \examples{
-embed_posteriors(tax_level="genus", which_measure="Sigma", MAP=FALSE)
+embed_posteriors(tax_level="ASV", which_measure="Sigma", MAP=FALSE)
 }

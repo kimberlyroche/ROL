@@ -6,7 +6,7 @@
 large distance matrices to be calculated in blocks by independent parallel jobs on the
 cluster}
 \usage{
-calc_posterior_distance_row(tax_level = "genus", sample_idx = 1)
+calc_posterior_distance_row(tax_level = "ASV", sample_idx = 1)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -22,5 +22,5 @@ cluster
 Output is saved to a file.
 }
 \examples{
-calc_posterior_distances_row(tax_level="genus", sample_idx=1)
+calc_posterior_distances_row(tax_level="ASV", sample_idx=1)
 }

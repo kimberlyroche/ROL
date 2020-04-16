@@ -4,7 +4,7 @@
 \alias{get_fitted_model_list}
 \title{Pulls a list of fitted basset models from the designated output directory}
 \usage{
-get_fitted_model_list(tax_level = "genus", MAP = FALSE)
+get_fitted_model_list(tax_level = "ASV", MAP = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -15,5 +15,5 @@ get_fitted_model_list(tax_level = "genus", MAP = FALSE)
 Pulls a list of fitted basset models from the designated output directory
 }
 \examples{
-model_list <- get_fitted_model_list(tax_level="genus", MAP=FALSE)
+model_list <- get_fitted_model_list(tax_level="ASV", MAP=FALSE)
 }

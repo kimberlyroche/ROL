@@ -4,7 +4,7 @@
 \alias{fit_GP}
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
-fit_GP(data, host, tax_level = "genus", SE_sigma = 1, PER_sigma = 1,
+fit_GP(data, host, tax_level = "ASV", SE_sigma = 1, PER_sigma = 1,
   SE_days_to_baseline = 90, date_lower_limit = NULL,
   date_upper_limit = NULL, alr_ref = NULL, n_samples = 100,
   MAP = FALSE, ...)
@@ -39,6 +39,6 @@ Fit a Gaussian process to a single host series using basset
 Fitted model and metadata saved to designated model output directory.
 }
 \examples{
-data <- load_data(tax_level="genus")
-fit_GP(data, host="ACA", tax_level="genus", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
+data <- load_data(tax_level="ASV")
+fit_GP(data, host="ACA", tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
 }

@@ -4,8 +4,9 @@
 \alias{plot_ordination}
 \title{Plot first several principle coordinates of ordination}
 \usage{
-plot_ordination(tax_level = "genus", which_measure = "Sigma",
-  annotation = "host", MAP = FALSE, show_plot = FALSE)
+plot_ordination(tax_level = "ASV", which_measure = "Sigma",
+  annotation = "host", MAP = FALSE, spike_in = FALSE,
+  show_plot = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -16,11 +17,13 @@ plot_ordination(tax_level = "genus", which_measure = "Sigma",
 
 \item{MAP}{use MAP estimate model output instead of full posterior output}
 
+\item{spike_in}{copy and permute the samples and calculate distances to these too, so as to give upper bound on distances}
+
 \item{show_plot}{show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)}
 }
 \description{
 Plot first several principle coordinates of ordination
 }
 \examples{
-plot_ordination(tax_level="genus", which_measure="Sigma", annotation="host", MAP=FALSE)
+plot_ordination(tax_level="ASV", which_measure="Sigma", annotation="host", MAP=FALSE)
 }

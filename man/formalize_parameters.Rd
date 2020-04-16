@@ -2,8 +2,7 @@
 % Please edit documentation in R/model_fitting.R
 \name{formalize_parameters}
 \alias{formalize_parameters}
-\title{Generate empirical estimates for variance components to use in the Gaussian process by
-estimating the noise between replicates}
+\title{Generate empirical estimates for variance components to use in the Gaussian process}
 \usage{
 formalize_parameters(data)
 }
@@ -14,8 +13,7 @@ formalize_parameters(data)
 list containing variance recommended for SE and PER kernels
 }
 \description{
-Generate empirical estimates for variance components to use in the Gaussian process by
-estimating the noise between replicates
+Generate empirical estimates for variance components to use in the Gaussian process
 }
 \details{
 The SE and PER kernels are apportioned the empirical ALR variance, split 90/10 

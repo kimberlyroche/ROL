@@ -4,7 +4,7 @@
 \alias{get_other_labels}
 \title{Get other annotations (e.g. sample number) for hosts in data set}
 \usage{
-get_other_labels(centroids, tax_level = "genus", annotation = "group",
+get_other_labels(centroids, tax_level = "ASV", annotation = "group",
   MAP = FALSE)
 }
 \arguments{
@@ -30,5 +30,5 @@ wetproportion
 }
 \examples{
 centroids <- readRDS(file.path("output","plots","genus","Sigma_ordination_centroids.rds"))
-labelled_centoids <- get_other_labels(centroids, tax_level="genus", annotation="group", MAP=FALSE)
+labelled_centoids <- get_other_labels(centroids, tax_level="ASV", annotation="group", MAP=FALSE)
 }

@@ -4,7 +4,7 @@
 \alias{plot_axes}
 \title{Plot a pair of principal coordinates}
 \usage{
-plot_axes(coordinates = NULL, centroids, tax_level = "genus",
+plot_axes(coordinates = NULL, centroids, tax_level = "ASV",
   axis1 = 1, axis2 = 2, annotation = "host", MAP = FALSE,
   show_plot = FALSE)
 }
