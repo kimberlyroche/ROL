@@ -26,6 +26,34 @@ load_MAP_estimates <- function(tax_level="ASV", logratio="alr") {
   return(Sigmas)
 }
 
+#' Load full posterior estimates of microbial covariances from fitted models at the desired taxonomic level
+#' 
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
+#' @return list of full posterior covariance estimates indexed by host short name
+#' @import driver
+#' @import stray
+#' @export
+#' @examples
+#' Sigmas <- load_full_posteriors(tax_level="ASV", logratio="alr")
+load_full_posteriors <- function(tax_level="ASV", logratio="alr") {
+  model_list <- get_fitted_model_list(tax_level=tax_level, MAP=FALSE)
+  Sigmas <- list()
+  for(i in 1:length(model_list$hosts)) {
+    host <- model_list$hosts[i]
+    cat("Processing",host,"\n")
+    fit <- readRDS(model_list$model_list[i])$fit
+    if(logratio == "clr") {
+      fit <- to_clr(fit)
+    }
+    if(logratio == "ilr") {
+      fit <- to_ilr(fit)
+    }
+    Sigmas[[host]] <- fit$Sigma
+  }
+  return(Sigmas)
+}
+
 #' Get correlations between one microbe and all others at designated taxonomic level
 #' 
 #' @param taxon_idx the logratio coordinate to render correlations against
@@ -117,8 +145,10 @@ get_pairwise_correlations <- function(tax_level="ASV", logratio="alr", Sigmas=NU
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @param Sigmas optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded
-#' @param taxon_idx the logratio coordinate to render correlations against; if NULL, render all pairwise correlations
-#' @param show_plot show() plot in addition to rendering it to a file
+#' @param cluster optional flag to hierarchically cluster across hosts and interactions
+#' @param taxon_idx optional logratio coordinate to render correlations against; if NULL, render all pairwise correlations
+#' @param show_plot optional flag to show() plot in addition to rendering it to a file
+#' @param return_matrix optional flag to return host x interaction correlation value matrix
 #' @return NULL or heatmap matrix
 #' @import driver
 #' @export
@@ -126,7 +156,7 @@ get_pairwise_correlations <- function(tax_level="ASV", logratio="alr", Sigmas=NU
 #' Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="clr")
 #' plot_interaction_heatmap(tax_level="ASV", logratio="clr", Sigmas=Sigmas)
 plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=NULL,
-                                     taxon_idx=NULL, show_plot=FALSE, return_matrix=FALSE) {
+                                     cluster=TRUE, taxon_idx=NULL, show_plot=FALSE, return_matrix=FALSE) {
   if(logratio != "alr" & logratio != "clr") {
     stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
   }
@@ -137,14 +167,19 @@ plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=N
     interactions <- pairs_obj$interactions
     
     # hierarchically cluster all interactions
-    d <- dist(interactions)
-    clustering.hosts <- hclust(d)
-    d <- dist(t(interactions))
-    clustering.interactions <- hclust(d)
-    # reorder all
-    interactions.reordered <- interactions[clustering.hosts$order,]
-    interactions.reordered <- interactions.reordered[,clustering.interactions$order]
-    labels.reordered <- labels[clustering.interactions$order]
+    if(cluster) {
+      d <- dist(interactions)
+      clustering.hosts <- hclust(d)
+      d <- dist(t(interactions))
+      clustering.interactions <- hclust(d)
+      # reorder all
+      interactions.reordered <- interactions[clustering.hosts$order,]
+      interactions.reordered <- interactions.reordered[,clustering.interactions$order]
+      labels.reordered <- labels[clustering.interactions$order]
+    } else {
+      interactions.reordered <- interactions
+      labels.reordered <- labels
+    }
     df <- gather_array(interactions.reordered, "correlation", "host", "pair")
     # plot
     p <- ggplot(df, aes(pair, host)) +
