@@ -221,7 +221,7 @@ plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=N
 #' @import phyloseq
 #' @export
 #' @examples
-#' get_universal_interactions(tax_level="ASV")
+#' interaction_matrix <- get_universal_interactions(tax_level="ASV")
 get_universal_interactions <- function(tax_level="ASV", show_plot=FALSE, order_by="abundance") {
   if(order_by != "abundance" & order_by != "taxonomy") {
     stop(paste0("Invalid interaction ordering '",order_by,"'!\n"))
@@ -367,3 +367,19 @@ get_universal_interactions <- function(tax_level="ASV", show_plot=FALSE, order_b
   interaction_set <- interaction_set[ranks,]
   return(interaction_set)
 }
+
+#' Calculate a score (0.0 to 1.0) for the "universality" of given microbial interaction
+#' 
+#' @param x vector of correlations between a pair of CLR microbes across individuals
+#' @details An element of x should be the (MAP) correlation between a pair of CLR microbes.
+#' The length of x is assumed equal to the number of hosts.
+#' @return score
+#' @export
+#' @examples
+#' interaction_matrix <- get_universal_interactions(tax_level="ASV")
+#' score <- calc_universality_score(interaction_matrix[,1]
+calc_universality_score <- function(x) {
+  max_sd <- sd(c(rep(-1, length(x)/2), rep(1, length(x)/2)))
+  return(((max_sd - sd(x))/max_sd) * abs(mean(x)))
+}
+

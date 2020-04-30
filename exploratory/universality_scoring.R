@@ -4,10 +4,6 @@ library(dplyr)
 library(purrr)
 library(driver)
 
-calc_universality_score <- function(x) {
-  ((max_sd - sd(x))/max_sd) * abs(mean(x))
-}
-
 tax_level <- "ASV"
 logratio <- "clr"
 
@@ -61,7 +57,36 @@ if(uncertain_scores) {
   interactions <- interactions[host_reordering,interaction_reordering]
 }
 
-max_sd <- sd(c(rep(-1, n_hosts/2), rep(1, n_hosts/2)))
+if(uncertain_scores) {
+  save_dir <- check_output_dir(c("output","plots",tax_level))
+} else {
+  save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
+}
+
+# sanity checking with some exemplar scores
+if(TRUE) {
+  # perfect agreement
+  x <- rep(1, 6)
+  cat("Score:",round(calc_universality_score(x), 2),"\n")
+
+  # perfect disagreement
+  x <- c(1, 1, 1, -1, -1, -1)
+  cat("Score:",round(calc_universality_score(x), 2),"\n")
+
+  # high mean, low-ish variance
+  x <- c(1, 0.95, 0.9, 0.85, 0.8, 0.75)
+  cat("Score:",round(calc_universality_score(x), 2),"\n")
+
+  # near-zero mean, low-ish variance
+  x <- c(-0.15, -0.1, -0.05, 0, 0.05, 0.01)
+  cat("Score:",round(calc_universality_score(x), 2),"\n")
+
+  # near-zero mean, low-ish variance
+  x <- c(1, 0.9, 0.8, 0.7, 0.6, 0.5)
+  cat("Score:",round(calc_universality_score(x), 2),"\n")
+}
+
+quit()
 
 if(uncertain_scores) {
   # plot heatmap/"rug" for the first few posterior samples
@@ -70,7 +95,6 @@ if(uncertain_scores) {
     p <- ggplot(df, aes(interaction, host)) +
       geom_tile(aes(fill = correlation)) +
       scale_fill_gradient2(low = "darkblue", high = "darkred")
-    save_dir <- check_output_dir(c("output","plots",tax_level))
     ggsave(file.path(save_dir,paste0("universal_interactions_posterior_sample_",k,".png")),
            p, units="in", dpi=100, height=5, width=15)
   }
@@ -98,7 +122,6 @@ if(uncertain_scores) {
     geom_ribbon(aes(x=interaction_idx, ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
     geom_line(aes(x=interaction_idx, y=mean), color="blue", group=1, size=0.25) +
     theme_minimal()
-  save_dir <- check_output_dir(c("output","plots",tax_level))
   ggsave(file.path(save_dir,paste0("universal_interactions_posterior_scores.png")),
           p, units="in", dpi=100, height=2, width=15)
 } else {
@@ -107,7 +130,6 @@ if(uncertain_scores) {
   p <- ggplot(df, aes(interaction, host)) +
     geom_tile(aes(fill = correlation)) +
     scale_fill_gradient2(low = "darkblue", high = "darkred")
-  save_dir <- check_output_dir(c("output","plots",tax_level))
   ggsave(file.path(save_dir,paste0("universal_interactions_MAP.png")),
           p, units="in", dpi=100, height=5, width=15)
 
@@ -117,40 +139,28 @@ if(uncertain_scores) {
   p <- ggplot(df) +
     geom_line(aes(x=interaction, y=score), color="blue", group=1, size=0.25) +
     theme_minimal()
-  save_dir <- check_output_dir(c("output","plots",tax_level))
   ggsave(file.path(save_dir,paste0("universal_interactions_MAP_scores.png")),
           p, units="in", dpi=100, height=2, width=15)
 }
 
-# sanity checking these scores
+if(FALSE) {
+  # null distribution of scores?
+  # permute interactions across hosts within a column
+  permuted_interactions <- interactions
+  n_interactions <- ncol(interactions)
+  for(i in 1:n_hosts) {
+    shuffle_order <- sample(1:n_interactions)
+    permuted_interactions[i,] <- permuted_interactions[i,shuffle_order]
+  }
+  H0_scores <- c()
+  for(j in 1:n_interactions) {
+    H0_scores <- c(H0_scores, calc_universality_score(permuted_interactions[,j]))
+  }
 
-# D <- 6
-
-# # low std. dev., large (+) magnitude
-# x <- rep(1, D)
-# cat("Score should be large:",round(calc_universality_score(x), 2),"\n")
-
-# # ...plus a little noise
-# x <- rep(1, D) + rnorm(D, 0, 0.05)
-# x <- x / max(x)
-# cat("Score should be large:",round(calc_universality_score(x), 2),"\n")
-
-# # # ...ditto but large (-) magnitude
-# # x <- rep(-1, 100) + rnorm(100, 0, 0.05)
-# # x <- x / abs(min(x))
-# # cat("Score should be large:",round(calc_universality_score(x), 2),"\n")
-
-# # large (+) magnitude but high-ish std. dev.
-# x <- rnorm(D, 0.8, 0.3)
-# x <- x / max(x)
-# cat("Score should be middling:",round(calc_universality_score(x), 2),"\n")
-
-# # low (+) magnitude and high-ish std. dev.
-# x <- rnorm(D, 0.1, 0.3)
-# x <- x / max(x)
-# cat("Score should be low:",round(calc_universality_score(x), 2),"\n")
-
-# # low (+) magnitude and medium-ish std. dev.
-# x <- rnorm(D, -0.2, 0.2)
-# # x <- x / abs(min(x))
-# cat("Score should be low:",round(calc_universality_score(x), 2),"\n")
+  df <- data.frame(x = H0_scores, which = "null")
+  df <- rbind(df, data.frame(x = apply(interactions, 2, calc_universality_score), which = "actual"))
+  p <- ggplot(df) +
+    geom_density(aes(x = x, color = which)) +
+    xlim(c(0, 1))
+  ggsave(file.path(save_dir,"hull_distribution_universality.png"), p, units = "in", dpi = 100, height = 5, width = 8) 
+}

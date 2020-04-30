@@ -5,8 +5,8 @@
 \title{Plot heatmap over all pairwise (MAP) correlations between microbes at designated taxonomic level}
 \usage{
 plot_interaction_heatmap(tax_level = "ASV", logratio = "alr",
-  Sigmas = NULL, taxon_idx = NULL, show_plot = FALSE,
-  return_matrix = FALSE)
+  Sigmas = NULL, cluster = TRUE, taxon_idx = NULL,
+  show_plot = FALSE, return_matrix = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -15,9 +15,13 @@ plot_interaction_heatmap(tax_level = "ASV", logratio = "alr",
 
 \item{Sigmas}{optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded}
 
-\item{taxon_idx}{the logratio coordinate to render correlations against; if NULL, render all pairwise correlations}
+\item{cluster}{optional flag to hierarchically cluster across hosts and interactions}
 
-\item{show_plot}{show() plot in addition to rendering it to a file}
+\item{taxon_idx}{optional logratio coordinate to render correlations against; if NULL, render all pairwise correlations}
+
+\item{show_plot}{optional flag to show() plot in addition to rendering it to a file}
+
+\item{return_matrix}{optional flag to return host x interaction correlation value matrix}
 }
 \value{
 NULL or heatmap matrix

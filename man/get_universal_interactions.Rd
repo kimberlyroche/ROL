@@ -25,5 +25,5 @@ Correlations are evaluated in the CLR. A threshold of 0.4 will identify pairs of
 taxa with median correlation of > 0.4 or < -0.4. Pairs are rendered as bigraphs.
 }
 \examples{
-get_universal_interactions(tax_level="ASV")
+interaction_matrix <- get_universal_interactions(tax_level="ASV")
 }
