@@ -368,6 +368,12 @@ get_universal_interactions <- function(tax_level="ASV", show_plot=FALSE, order_b
   return(interaction_set)
 }
 
+# old version
+calc_universality_score.old <- function(x) {
+  max_sd <- sd(c(rep(-1, length(x)/2), rep(1, length(x)/2)))
+  return(((max_sd - sd(x))/max_sd) * abs(mean(x)))
+}
+
 #' Calculate a score (0.0 to 1.0) for the "universality" of given microbial interaction
 #' 
 #' @param x vector of correlations between a pair of CLR microbes across individuals
@@ -379,7 +385,79 @@ get_universal_interactions <- function(tax_level="ASV", show_plot=FALSE, order_b
 #' interaction_matrix <- get_universal_interactions(tax_level="ASV")
 #' score <- calc_universality_score(interaction_matrix[,1]
 calc_universality_score <- function(x) {
-  max_sd <- sd(c(rep(-1, length(x)/2), rep(1, length(x)/2)))
-  return(((max_sd - sd(x))/max_sd) * abs(mean(x)))
+  x.sign <- sapply(x, sign)
+  neg.idx <- which (x.sign < 0)
+  pos.idx <- which(x.sign > 0)
+  neg.abs.mean <- NA
+  pos.abs.mean <- NA
+  if(length(neg.idx) > 0) {
+    neg.abs.mean <- abs(mean(x[neg.idx]))
+  }
+  if(length(pos.idx) > 0) {
+    pos.abs.mean <- abs(mean(x[pos.idx]))
+  }
+  score <- 0
+  # R doesn't do short circuit evaluation?
+  if(!is.na(neg.abs.mean) & !is.na(pos.abs.mean)) {
+    if(pos.abs.mean > neg.abs.mean) {
+      # use this as majority direction
+      score <- (length(pos.idx)/length(x))*(pos.abs.mean)
+    } else {
+      score <- (length(neg.idx)/length(x))*(neg.abs.mean)
+    }
+  } else {
+    if(is.na(neg.abs.mean)) {
+      score <- (length(pos.idx)/length(x))*(pos.abs.mean)
+    } else {
+      score <- (length(neg.idx)/length(x))*(neg.abs.mean)
+    }
+  }
+  score
+}
+
+#' Calculate a score (0.0 to 1.0) for the "universality" of given microbe
+#' 
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param Sigmas optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded
+#' @details These scores do not currently incorporate posterior uncertainty. Returns results for correlations in CLR.
+#' @return named list of per-microbe scores
+#' @export
+#' @examples
+#' Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="clr")
+#' scores <- calc_microbe_universality_score(tax_level="ASV", Sigmas=Sigmas)
+#' reorder <- order(unlist(scores), decreasing=TRUE)
+#' scores <- unlist(scores)[reorder]
+calc_microbe_universality_score <- function(tax_level="ASV", Sigmas=NULL) {
+  if(is.null(Sigmas)) {
+    Sigmas <- load_MAP_estimates(tax_level=tax_level, logratio="clr")
+  }
+  n_taxa <- nrow(Sigmas[[1]])
+  hosts <- names(Sigmas)
+  # transform these posterior covariance estimates to correlation
+  Sigmas_corr <- Sigmas
+  for(host in hosts) {
+    Sigmas_corr[[host]] <- cov2cor(Sigmas_corr[[host]])
+  }
+
+  # get labels
+  data <- load_data(tax_level=tax_level)
+  alr_ref <- formalize_parameters(data)$alr_ref
+  tax <- get_taxonomy(data, alr_ref)
+
+  # get scores
+  median_scores <- list()
+  for(focal_microbe in 1:n_taxa) {
+    focal_scores <- c()
+    for(other_microbe in setdiff(1:n_taxa, focal_microbe)) {
+      focal_interactions <- c()
+      for(host in hosts) {
+        focal_interactions <- c(focal_interactions, Sigmas_corr[[host]][focal_microbe, other_microbe])
+      }
+      focal_scores <- c(focal_scores, calc_universality_score(focal_interactions))
+    }
+    label <- get_deepest_assignment(tax[focal_microbe,], deepest_tax_level="genus")
+    median_scores[[label]] <- median(focal_scores)
+  }
+  return(median_scores)
 }
 
