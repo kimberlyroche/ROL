@@ -388,28 +388,28 @@ calc_universality_score <- function(x) {
   x.sign <- sapply(x, sign)
   neg.idx <- which (x.sign < 0)
   pos.idx <- which(x.sign > 0)
-  neg.abs.mean <- NA
-  pos.abs.mean <- NA
+  neg.abs.median <- NA
+  pos.abs.median <- NA
   if(length(neg.idx) > 0) {
-    neg.abs.mean <- abs(mean(x[neg.idx]))
+    neg.abs.median <- abs(median(x[neg.idx]))
   }
   if(length(pos.idx) > 0) {
-    pos.abs.mean <- abs(mean(x[pos.idx]))
+    pos.abs.median <- abs(median(x[pos.idx]))
   }
   score <- 0
   # R doesn't do short circuit evaluation?
-  if(!is.na(neg.abs.mean) & !is.na(pos.abs.mean)) {
-    if(pos.abs.mean > neg.abs.mean) {
+  if(!is.na(neg.abs.median) & !is.na(pos.abs.median)) {
+    if(pos.abs.median > neg.abs.median) {
       # use this as majority direction
-      score <- (length(pos.idx)/length(x))*(pos.abs.mean)
+      score <- (length(pos.idx)/length(x))*(pos.abs.median)
     } else {
-      score <- (length(neg.idx)/length(x))*(neg.abs.mean)
+      score <- (length(neg.idx)/length(x))*(neg.abs.median)
     }
   } else {
-    if(is.na(neg.abs.mean)) {
-      score <- (length(pos.idx)/length(x))*(pos.abs.mean)
+    if(is.na(neg.abs.median)) {
+      score <- (length(pos.idx)/length(x))*(pos.abs.median)
     } else {
-      score <- (length(neg.idx)/length(x))*(neg.abs.mean)
+      score <- (length(neg.idx)/length(x))*(neg.abs.median)
     }
   }
   score
