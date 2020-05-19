@@ -74,7 +74,8 @@ plot_timecourse <- function(data, host=NULL, gapped=FALSE, legend=TRUE, selected
   # this label appears to need to be a factor to maintain its ordering
   reordered_df$Sample <- factor(reordered_df$Sample, levels=unique(reordered_df$Sample))
 
-    # replace ASV sequences with their (abbrev.) family (=5) level taxonomy for readability
+  # replace ASV sequences with their (abbrev.) family (=5) level taxonomy for readability
+  img_height = 4
   if(legend) {
     for(i in 1:dim(reordered_df)[1]) {
       # show labels as order/family/genus
@@ -83,6 +84,7 @@ plot_timecourse <- function(data, host=NULL, gapped=FALSE, legend=TRUE, selected
         reordered_df$OTU[i] <- paste(as.vector(tax_table(data)[reordered_df$OTU[i],5]),collapse="/")
       }
     }
+    img_height = 6
   }
   
   categories <- unique(reordered_df$OTU)
@@ -91,7 +93,8 @@ plot_timecourse <- function(data, host=NULL, gapped=FALSE, legend=TRUE, selected
   if(gapped | !legend) {
     coul[1] <- "#DDDDDD"
   }
-  img_width <- round(N/4)
+  # img_width <- round(N/4)
+  # fix the dimensions of these at 4 x 12 in.
   if(!is.null(selected_samples)) {
     p <- ggplot(reordered_df, aes(x=Sample, y=Abundance, fill=OTU, alpha=alpha))
   } else {
@@ -112,7 +115,7 @@ plot_timecourse <- function(data, host=NULL, gapped=FALSE, legend=TRUE, selected
     show(p)
   }
   ggsave(file.path(save_dir,paste0(host,"_timecourse.png")),
-         plot=p, scale=1.5, dpi=100, width=img_width, height=6, units="in")
+         plot=p, scale=1.5, dpi=100, width=12, height=img_height, units="in")
 }
 
 #' Calculate lagged autocorrelation
