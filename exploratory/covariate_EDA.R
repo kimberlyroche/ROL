@@ -2,9 +2,9 @@ library(tidyverse)
 library(phyloseq)
 library(ggplot2)
 
-data <- readRDS("input/ps_w_covs.RDS")
+data <- readRDS("input/ps_w_covs.rds")
 metadata <- sample_data(data)
-names(metadata)
+# names(metadata)
 
 # baboons have numbers (e.g. "Baboon_562" instead of short names in this data set)
 
@@ -78,7 +78,8 @@ viz_ac <- function(md, feature, host_limit  = NULL) {
   if(is.null(host_limit)) {
     host_limit <- length(hosts)
   }
-  for(host in hosts[1:host_limit]) {
+  use_hosts <- hosts[sample(1:length(hosts))[1:host_limit]]
+  for(host in use_hosts) {
     host <<- host
     cat("Host:",host,"\n")
     feature <<- feature
@@ -126,10 +127,10 @@ viz_ac <- function(md, feature, host_limit  = NULL) {
   ggsave(paste0(feature,"_autocorrelation.png"), p, units = "in", dpi = 100, height = 6, width = 10)
 }
 
-host_limit = NULL
-viz_ac(md.partial, feature = "diet_PC1", host_limit = host_limit)
+host_limit = 50
+#viz_ac(md.partial, feature = "diet_PC1", host_limit = host_limit)
 #viz_ac(md.partial, feature = "rain_monthly", host_limit = host_limit)
-#viz_ac(md.partial, feature = "tempmax_monthly", host_limit = host_limit)
+viz_ac(md.partial, feature = "tempmax_monthly", host_limit = host_limit)
 
 if(FALSE) {
   PER <- function(X, sigma=1, rho=1, period=24, jitter=0){
