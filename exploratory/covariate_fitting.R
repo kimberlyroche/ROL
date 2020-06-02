@@ -2,7 +2,7 @@ library(tidyverse)
 library(phyloseq)
 library(stray)
 library(ROL)
-library(pracma)
+#library(pracma) # for pchip()
 library(driver)
 
 # periodic kernel from the Kernel Cookbook
@@ -85,146 +85,128 @@ posterior_plot <- function(X_predict, Y_predict, taxon_idx, X_train = NULL, Y_tr
     theme(axis.title.x = element_blank(),
           axis.text.x = element_text(angle=45)) +
     ylab("LR coord")
-  show(p)
+  return(p)
 }
 
-# load data
-data <- load_data(tax_level="ASV")
-data <- subset_samples(data, sname == "DUI") # DUI
-metadata <- sample_data(data)
+use_hosts <- c("DUI","ECH","LOG","VET","DUX","LEB","ACA","OPH","THR","VAI")
+for(host in use_hosts) {
+  host <<- host
 
-# read diet covariate data
-data.diet <- readRDS("input/ps_w_covs.RDS")
-data.diet <- subset_samples(data.diet, host == "Baboon_103") # DUI
-metadata.diet <- sample_data(data.diet)
+  # load data
+  data <- load_data(tax_level="ASV")
+  data <- subset_samples(data, sname == host)
+  metadata <- sample_data(data)
 
-# do sample IDs match? (yes)
-# metadata$sample_id == metadata.diet$sample_id
+  # read diet covariate data
+  data.diet <- readRDS("input/ps_w_covs.RDS")
+  data.name_mapping <- read.csv("input/host_subject_id_to_sname_key.csv")
+  data.name_mapping <- unique(data.name_mapping[,c("sname","host_subject_id2")])
+  host.num <- as.character(data.name_mapping[data.name_mapping$sname == host,]$host_subject_id2)
+  data.diet <- subset_samples(data.diet, host == host.num)
+  metadata.diet <- sample_data(data.diet)
 
-cat("No. samples:",phyloseq::nsamples(data),",",phyloseq::nsamples(data.diet),"\n")
+  # pull out the count table (taxa x samples)
+  Y <- t(otu_table(data)@.Data)
 
-# pull out the count table (taxa x samples)
-Y <- t(otu_table(data)@.Data)
+  # pull dimensions (again)
+  D <- nrow(Y)
+  N <- ncol(Y)
 
-# pull dimensions (again)
-D <- nrow(Y)
-N <- ncol(Y)
+  X.basic <- build_design_matrix(metadata)
+  X.extra <- build_design_matrix(metadata, metadata.diet)
 
-X.basic <- build_design_matrix(metadata)
-X.extra <- build_design_matrix(metadata, metadata.diet)
+  # strip off sequence variant labels
+  colnames(Y) <- NULL
+  rownames(Y) <- NULL
 
-# strip off sequence variant labels
-colnames(Y) <- NULL
-rownames(Y) <- NULL
+  params <- formalize_parameters(data)
+  Y <- Y[c(setdiff(1:D,params$alr_ref),params$alr_ref),]
 
-params <- formalize_parameters(data)
-Y <- Y[c(setdiff(1:D,params$alr_ref),params$alr_ref),]
+  # define the composite kernel over samples
+  Gamma.basic <- function(X) {
+    dc <- 0.1 # desired minimum correlation
+    rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
+    Gamma_scale <- params$total_variance
+    SE(X, sigma = sqrt(Gamma_scale), rho = rho, jitter = 1e-08)
+  }
 
-# define the composite kernel over samples
-Gamma.basic <- function(X) {
-  dc <- 0.1 # desired minimum correlation
-  rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
-  Gamma_scale <- params$total_variance/3
-  SE(X, sigma = sqrt(Gamma_scale), rho = rho, jitter = 1e-08)
+  # define the composite kernel over samples
+  # FYI (myself): the optimization is pretty brittle here to the scale of Gamma giving failed (?) convergence
+  #               (Cholesky of Hessian fails)
+  Gamma.extra <- function(X) {
+    jitter <- 1e-08
+    # back calculate the decay in correlation to approx. 0.1 at 90 days
+    dc <- 0.1 # desired minimum correlation
+    rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
+    Gamma_scale <- params$total_variance
+    base_sigma_sq <- Gamma_scale * 0.5
+    PER_sigma_sq <- Gamma_scale * 0.5
+    SE(X[1,,drop=F], sigma = sqrt(base_sigma_sq), rho = rho, jitter = jitter) +
+      PER(X[1,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, period = 365, jitter = jitter) +
+      SE(X[2:6,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, jitter = jitter) # a few diet PCs
+  }
+
+  # ALR prior for Sigma (bacterial covariance)
+  upsilon <- D - 1 + 10 # specify low certainty/concentration
+  GG <- cbind(diag(D-1), -1) # log contrast for ALR with last taxon as reference
+  Xi <- GG%*%(diag(D))%*%t(GG) # take diag as covariance over log abundances
+  Xi <- Xi*(upsilon-D-1)
+
+  # define the prior over baselines as the empirical mean alr(Y)
+  alr_ys <- driver::alr((t(Y) + 0.5))
+  alr_means <- colMeans(alr_ys)
+  Theta <- function(X) matrix(alr_means, D-1, ncol(X))
+
+  # MAP fits
+  # fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 0, ret_mean = TRUE)
+  # fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 0, ret_mean = TRUE)
+  fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 100)
+
+  # this generally fails due to Hessian inversion problem; indicates its not finding the optimum?
+  # Gamma.extra(X.extra) is PSD so that's not an issue
+  # predictive fits look weird when it does work?
+  fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 100)
+
+  # assess comparative fit
+  # (1) log marginal likelihood
+  writeLines(paste0(host,"\t",fit.basic$logMarginalLikelihood,"\t",fit.extra$logMarginalLikelihood), "mll_out.txt")
+
+  # (2) eyeball the predictive fits for the first taxon
+  # basic model
+  X_predict.basic <- t(1:(max(X.basic)))
+  predicted.basic <- predict(fit.basic, X_predict.basic, response = "Eta", iter = fit.basic$iter)
+  plot.basic <- posterior_plot(X_predict.basic, predicted.basic, taxon_idx = 1,
+                X_train = X.basic, Y_train = t(alr_ys))
+  ggsave(paste0(host,"_predictive_01.png"), plot.basic, units = "in", dpi = 100, height = 4, width = 12)
+
+  # need to interpolate additional features (diet, climate) for the extra model
+  full_n <- max(X.extra[1,,drop=F])
+  partial_n <- full_n
+  X_predict.extra <- t(1:partial_n)
+  trunc_X <- X.extra[1,]
+  selected_idx <- trunc_X <= partial_n
+  trunc_X <- trunc_X[selected_idx]
+  n_features <- nrow(X.extra)-1
+  for(f in 1:n_features) {
+    #X_predict.extra <- rbind(X_predict.extra, pchip(xi = trunc_X, yi = X.extra[f+1,selected_idx], x = 1:partial_n))
+    X_predict.extra <- rbind(X_predict.extra, t(approx(x = trunc_X, y = X.extra[f+1,selected_idx], xout = 1:partial_n, method = "linear")$y))
+  }
+  # then predict
+  predicted.extra <- predict(fit.extra, X_predict.extra, response="Eta", iter=fit.extra$iter)
+  plot.extra <- posterior_plot(X_predict.extra, predicted.extra, taxon_idx = 1,
+                X_train = X.extra[,selected_idx], Y_train = t(alr_ys)[,selected_idx])
+  ggsave(paste0(host,"_predictive_02.png"), plot.extra, units = "in", dpi = 100, height = 4, width = 12)
+
+  # (3) eyeball the differences in Sigma
+  png(paste0(host,"_Sigma_01.png"))
+  crude_Sigma_basic <- apply(fit.basic$Sigma, c(1,2), mean)
+  image(crude_Sigma_basic)
+  dev.off()
+  png(paste0(host,"_Sigma_02.png"))
+  crude_Sigma_extra <- apply(fit.extra$Sigma, c(1,2), mean)
+  image(crude_Sigma_extra)
+  dev.off()
 }
-
-# define the composite kernel over samples
-# FYI (myself): the optimization is pretty brittle here to the scale of Gamma giving failed (?) convergence
-#               (Cholesky of Hessian fails)
-Gamma.extra <- function(X) {
-  jitter <- 1e-08
-  # back calculate the decay in correlation to approx. 0.1 at 90 days
-  dc <- 0.1 # desired minimum correlation
-  rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
-  Gamma_scale <- params$total_variance/3
-  base_sigma_sq <- Gamma_scale * 0.9
-  PER_sigma_sq <- Gamma_scale * 0.1
-  SE(X[1,,drop=F], sigma = sqrt(base_sigma_sq), rho = rho, jitter = jitter) +
-    PER(X[1,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, period = 365, jitter = jitter) +
-    SE(X[2:6,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, jitter = jitter) # a few diet PCs
-}
-
-# ALR prior for Sigma (bacterial covariance)
-upsilon <- D - 1 + 10 # specify low certainty/concentration
-GG <- cbind(diag(D-1), -1) # log contrast for ALR with last taxon as reference
-Xi <- GG%*%(diag(D))%*%t(GG) # take diag as covariance over log abundances
-Xi <- Xi*(upsilon-D-1)
-
-# define the prior over baselines as the empirical mean alr(Y)
-alr_ys <- driver::alr((t(Y) + 0.5))
-alr_means <- colMeans(alr_ys)
-Theta <- function(X) matrix(alr_means, D-1, ncol(X))
-
-# MAP fits
-# fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 0, ret_mean = TRUE)
-# fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 0, ret_mean = TRUE)
-fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 100)
-
-# this generally fails due to Hessian inversion problem; indicates its not finding the optimum?
-# Gamma.extra(X.extra) is PSD so that's not an issue
-# predictive fits look weird when it does work?
-fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 100)
-
-# FWIW, compare marginal log likelihoods
-fit.basic$logMarginalLikelihood
-fit.extra$logMarginalLikelihood # slightly better
-
-# PREDICT "BASIC" (i.e. w/o extra covariates)
-X_predict.basic <- t(1:(max(X.basic)))
-predicted.basic <- predict(fit.basic, X_predict.basic, response = "Eta", iter = fit.basic$iter)
-posterior_plot(X_predict.basic, predicted.basic, taxon_idx = 1,
-               X_train = X.basic, Y_train = t(alr_ys))
-
-# PREDICT "EXTRA" (w/ diet and climate covariates)
-# need to interpolate diet PCs
-full_n <- max(X.extra[1,,drop=F])
-# partial_n <- 1000
-partial_n <- full_n
-X_predict.extra <- t(1:partial_n)
-trunc_X <- X.extra[1,]
-selected_idx <- trunc_X <= partial_n
-trunc_X <- trunc_X[selected_idx]
-n_features <- nrow(X.extra)-1
-for(f in 1:n_features) {
-  X_predict.extra <- rbind(X_predict.extra, pchip(xi = trunc_X, yi = X.extra[f+1,selected_idx], x = 1:partial_n))
-}
-
-# plot PCHIP interpolated diet PC 1
-plot(X_predict.extra[2,])
-# check PSD
-min(eigen(Gamma.extra(X_predict.extra))$values) < 0
-
-# predict
-predicted.extra <- predict(fit.extra, X_predict.extra, response="Eta", iter=fit.extra$iter)
-posterior_plot(X_predict.extra, predicted.extra, taxon_idx = 1,
-               X_train = X.extra[,selected_idx], Y_train = t(alr_ys)[,selected_idx])
-
-crude_Sigma_basic <- apply(fit.basic$Sigma, c(1,2), mean)
-image(crude_Sigma_basic)
-
-crude_Sigma_extra <- apply(fit.extra$Sigma, c(1,2), mean)
-image(crude_Sigma_extra)
-
-# visualize individual kernels
-if(FALSE) {
-  jitter <- 1e-08
-  # back calculate the decay in correlation to approx. 0.1 at 90 days
-  test_dc <- 0.1 # desired minimum correlation
-  test_rho <- sqrt(-90^2/(2*log(test_dc))) # back calculate the decay (90 days to a drop-off of)
-  test_sigma <- 1
-  kernel <- SE(X.extra[1,,drop=F], sigma = test_sigma, rho = test_rho, jitter = jitter)
-  image(kernel)
-  
-  kernel <- PER(X.extra[1,,drop=F], sigma = test_sigma, rho = 1, period = 365, jitter = jitter)
-  image(kernel)
-  
-  # diet and climate
-  kernel <- SE(X.extra[2:6,,drop=F], sigma = test_sigma, rho = 1, jitter = jitter)
-  image(kernel)  
-}
-
-
-
 
 
 
