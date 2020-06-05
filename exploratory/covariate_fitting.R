@@ -144,21 +144,19 @@ Y <- Y[c(setdiff(1:D,params$alr_ref),params$alr_ref),]
 Gamma.basic <- function(X) {
   dc <- 0.1 # desired minimum correlation
   rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
-  Gamma_scale <- params$total_variance
-  Gamma_scale <- 4
+  # Gamma_scale <- params$total_variance
+  Gamma_scale <- 2
   SE(X, sigma = sqrt(Gamma_scale), rho = rho, jitter = 1e-08)
 }
 
 # define the composite kernel over samples
-# FYI (myself): the optimization is pretty brittle here to the scale of Gamma giving failed (?) convergence
-#               (Cholesky of Hessian fails)
 Gamma.extra <- function(X) {
   jitter <- 1e-08
   # back calculate the decay in correlation to approx. 0.1 at 90 days
   dc <- 0.1 # desired minimum correlation
   rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
-  Gamma_scale <- params$total_variance
-  Gamma_scale <- 4
+  # Gamma_scale <- params$total_variance
+  Gamma_scale <- 2
   base_sigma_sq <- Gamma_scale * 0.5
   PER_sigma_sq <- Gamma_scale * 0.5
   SE(X[1,,drop=F], sigma = sqrt(base_sigma_sq), rho = rho, jitter = jitter) +
@@ -177,23 +175,35 @@ alr_ys <- driver::alr((t(Y) + 0.5))
 alr_means <- colMeans(alr_ys)
 Theta <- function(X) matrix(alr_means, D-1, ncol(X))
 
-#cat("\tFitting basic model...\n")
 # MAP fits
 # fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 0, ret_mean = TRUE)
 # fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 0, ret_mean = TRUE)
-#fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 100,
-#                           b2 = 0.99, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-04,
-#                           max_iter = 10000L, decomp_method = "cholesky", optim_method = "lbfgs")
-# saveRDS(fit.basic, file = paste0(host,"_fit_basic.rds"))
+basic.save_file <- paste0(host,"_fit_basic.rds")
+if(file.exists(basic.save_file)) {
+  cat("\tLoading basic model...\n")
+  fit.basic <- readRDS(basic.save_file)
+} else {
+  cat("\tFitting basic model...\n")
+  fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 100,
+                             b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
+                             max_iter = 10000L, optim_method = "adam")
+  saveRDS(fit.basic, file = basic.save_file)
+}
 
-cat("\tFitting extra model...\n")
 # this generally fails due to Hessian inversion problem; indicates its not finding the optimum?
 # Gamma.extra(X.extra) is PSD so that's not an issue
 # predictive fits look weird when it does work?
-fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 100,
-                           b2 = 0.99, step_size = 0.003, eps_f = 1e-10, eps_g = 1e-04,
-                           max_iter = 10000L, decomp_method = "eigen", optim_method = "lbfgs")
-# saveRDS(fit.extra, file = paste0(host,"_fit_extra.rds"))
+extra.save_file <- paste0(host,"_fit_extra.rds")
+if(file.exists(extra.save_file)) {
+  cat("\tLoading extra model...\n")
+  fit.extra <- readRDS(extra.save_file)
+} else {
+  cat("\tFitting extra model...\n")
+  fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 100,
+                             b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
+                             max_iter = 10000L, optim_method = "adam")
+  saveRDS(fit.extra, file = extra.save_file)
+}
 
 # assess comparative fit
 # (1) log marginal likelihood
@@ -207,7 +217,7 @@ X_predict.basic <- t(1:(max(X.basic)))
 predicted.basic <- predict(fit.basic, X_predict.basic, response = "Eta", iter = fit.basic$iter)
 plot.basic <- posterior_plot(X_predict.basic, predicted.basic, taxon_idx = 1,
               X_train = X.basic, Y_train = t(alr_ys))
-# ggsave(paste0(host,"_predictive_01.png"), plot.basic, units = "in", dpi = 100, height = 4, width = 12)
+ggsave(paste0(host,"_predictive_01.png"), plot.basic, units = "in", dpi = 100, height = 4, width = 12)
 
 # need to interpolate additional features (diet, climate) for the extra model
 full_n <- max(X.extra[1,,drop=F])
@@ -225,16 +235,14 @@ for(f in 1:n_features) {
 predicted.extra <- predict(fit.extra, X_predict.extra, response="Eta", iter=fit.extra$iter)
 plot.extra <- posterior_plot(X_predict.extra, predicted.extra, taxon_idx = 1,
               X_train = X.extra[,selected_idx], Y_train = t(alr_ys)[,selected_idx])
-# ggsave(paste0(host,"_predictive_02.png"), plot.extra, units = "in", dpi = 100, height = 4, width = 12)
+ggsave(paste0(host,"_predictive_02.png"), plot.extra, units = "in", dpi = 100, height = 4, width = 12)
 
 # (3) eyeball the differences in Sigma
-# png(paste0(host,"_Sigma_01.png"))
-# crude_Sigma_basic <- apply(fit.basic$Sigma, c(1,2), mean)
-# image(crude_Sigma_basic)
-# dev.off()
-# png(paste0(host,"_Sigma_02.png"))
-# crude_Sigma_extra <- apply(fit.extra$Sigma, c(1,2), mean)
-# image(crude_Sigma_extra)
-# dev.off()
-
-cat("Complete.\n")
+png(paste0(host,"_Sigma_01.png"))
+crude_Sigma_basic <- apply(fit.basic$Sigma, c(1,2), mean)
+image(crude_Sigma_basic)
+dev.off()
+png(paste0(host,"_Sigma_02.png"))
+crude_Sigma_extra <- apply(fit.extra$Sigma, c(1,2), mean)
+image(crude_Sigma_extra)
+dev.off()
