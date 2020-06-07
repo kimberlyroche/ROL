@@ -4,10 +4,18 @@
 \alias{fit_GP}
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
-fit_GP(data, host, tax_level = "ASV", SE_sigma = 1, PER_sigma = 1,
-  SE_days_to_baseline = 90, date_lower_limit = NULL,
-  date_upper_limit = NULL, alr_ref = NULL, n_samples = 100,
-  MAP = FALSE, ...)
+fit_GP(
+  data,
+  host,
+  tax_level = "ASV",
+  SE_days_to_baseline = 90,
+  date_lower_limit = NULL,
+  date_upper_limit = NULL,
+  alr_ref = NULL,
+  n_samples = 100,
+  MAP = FALSE,
+  ...
+)
 }
 \arguments{
 \item{data}{a phyloseq object}
@@ -15,10 +23,6 @@ fit_GP(data, host, tax_level = "ASV", SE_sigma = 1, PER_sigma = 1,
 \item{host}{host short name (e.g. ACA)}
 
 \item{tax_level}{taxonomic level at which to agglomerate data}
-
-\item{SE_sigma}{squared exponential kernel variance scale}
-
-\item{PER_sigma}{periodic kernel variance scale}
 
 \item{SE_days_to_baseline}{days at which squared exponential kernel decays to baseline correlation}
 

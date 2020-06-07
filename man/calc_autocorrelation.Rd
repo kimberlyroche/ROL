@@ -4,9 +4,15 @@
 \alias{calc_autocorrelation}
 \title{Calculate lagged autocorrelation}
 \usage{
-calc_autocorrelation(data, lag_units = "weeks", lag_max = 52,
-  use_lr = "ilr", alr_ref = NULL, resample = FALSE,
-  resample_rate = 0.2)
+calc_autocorrelation(
+  data,
+  lag_units = "weeks",
+  lag_max = 52,
+  use_lr = "ilr",
+  alr_ref = NULL,
+  resample = FALSE,
+  resample_rate = 0.2
+)
 }
 \arguments{
 \item{data}{a phyloseq object}

@@ -191,7 +191,9 @@ plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=N
     save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
     ggsave(file.path(save_dir,paste0("microbe_pair_correlations_",logratio,".png")),
            p, units="in", dpi=150, height=5, width=15)
-    return(interactions.reordered)
+    if(return_matrix) {
+      return(interactions.reordered)
+    }
   } else {
     interactions <- get_all_vs_one_correlations(taxon_idx, tax_level=tax_level, logratio=logratio, Sigmas=Sigmas)
     
@@ -257,11 +259,11 @@ get_universal_interactions <- function(tax_level="ASV", show_plot=FALSE, order_b
     if(criterion == "positive") {
       # positive interactions
       interesting_pairs <- ranks[(length(ranks)-top_k+1):length(ranks)]
-      cat(paste0("Evaluating top ",top_k," positive interactions...\n"))
+      # cat(paste0("Evaluating top ",top_k," positive interactions...\n"))
     } else {
       # negative interactions
       interesting_pairs <- ranks[1:top_k]
-      cat(paste0("Evaluating top ",top_k," negative interactions...\n"))
+      # cat(paste0("Evaluating top ",top_k," negative interactions...\n"))
     }
     
     if(length(interesting_pairs) > 0) {
@@ -281,7 +283,7 @@ get_universal_interactions <- function(tax_level="ASV", show_plot=FALSE, order_b
         }
         df <- rbind(df, data.frame(x=label.1, x_idx=microbe_pair[1], y=label.2, y_idx=microbe_pair[2],
                                    sign=sign(colMedians[p_idx]), value=2*abs(colMedians[p_idx])))
-        cat(paste0("Interesting pair (",p_idx,"): ",label.1,", ",label.2,"\n"))
+        # cat(paste0("Interesting pair (",p_idx,"): ",label.1,", ",label.2,"\n"))
       }
 
       x_nodes <- unique(df$x_idx)
@@ -383,7 +385,7 @@ calc_universality_score.old <- function(x) {
 #' @export
 #' @examples
 #' interaction_matrix <- get_universal_interactions(tax_level="ASV")
-#' score <- calc_universality_score(interaction_matrix[,1]
+#' score <- calc_universality_score(interaction_matrix[,1])
 calc_universality_score <- function(x) {
   x.sign <- sapply(x, sign)
   neg.idx <- which (x.sign < 0)

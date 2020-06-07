@@ -22,10 +22,10 @@ PER <- function(X, sigma=1, rho=1, period=24, jitter=0){
 #' @examples
 #' fit <- fix_MAP_dims(fit)
 fix_MAP_dims <- function(fit) {
-  if(length(dim(fit$Eta)) == 2) {
-    dim(fit$Eta) <- c(dim(fit$Eta),1)
-    dim(fit$Lambda) <- c(dim(fit$Lambda),1)
-    dim(fit$Sigma) <- c(dim(fit$Sigma),1)
+  if(length(dim(fit$fit$Eta)) == 2) {
+    dim(fit$fit$Eta) <- c(dim(fit$fit$Eta),1)
+    dim(fit$fit$Lambda) <- c(dim(fit$fit$Lambda),1)
+    dim(fit$fit$Sigma) <- c(dim(fit$fit$Sigma),1)
   }
   return(fit)
 }
@@ -85,19 +85,14 @@ default_ALR_prior <- function(D, log_var_scale=1) {
 #' Generate empirical estimates for variance components to use in the Gaussian process
 #' 
 #' @param data a phyloseq object
-#' @return list containing variance recommended for SE and PER kernels
-#' @details The SE and PER kernels are apportioned the empirical ALR variance, split 90/10 
-#' between the kernels.
+#' @return list containing median log abundance taxon and mean empirical total variance
+#' across hosts using this ALR representation
 #' @import phyloseq
 #' @import driver
 #' @export
-#' @examples
-#' params <- default_ALR_prior(D=100, log_var_scale=1)
-#' Sigma <- matrixsampling::rinvwishart(1, params$upsilon, params$Xi)[,,1]
 formalize_parameters <- function(data) {
   metadata <- sample_data(data)
-  sample_status <- metadata$sample_status # replicate labels
-
+  
   # pick an intermediate abundance ALR reference taxon
   counts <- otu_table(data)@.Data
   alr_ref <- which(order(apply(counts, 2, mean)) == round(ncol(counts)/2))
@@ -116,12 +111,8 @@ formalize_parameters <- function(data) {
       host_var <- c(host_var, diag(sample_var))
     }
   }
-  
   mean_total_var <- mean(host_var)
-  
-  # return squared exponential kernel variance as 45% (90%/2) the total empirical ALR variance and the periodic
-  # kernel variance as 5% (10%/2) the total empirical ALR variance
-  return(list(total_variance=mean_total_var, SE_variance=mean_total_var*0.9, PER_variance=mean_total_var*0.1, alr_ref=alr_ref))
+  return(list(total_variance=mean_total_var, alr_ref=alr_ref))
 }
 
 #' Fit a Gaussian process to a single host series using basset
@@ -129,8 +120,6 @@ formalize_parameters <- function(data) {
 #' @param data a phyloseq object
 #' @param host host short name (e.g. ACA)
 #' @param tax_level taxonomic level at which to agglomerate data
-#' @param SE_sigma squared exponential kernel variance scale
-#' @param PER_sigma periodic kernel variance scale
 #' @param SE_days_to_baseline days at which squared exponential kernel decays to baseline correlation
 #' @param date_lower_limit minimum date to consider (string format: YYYY-MM-DD)
 #' @param date_upper_limit maximum date to consider (string format: YYYY-MM-DD)
@@ -144,9 +133,8 @@ formalize_parameters <- function(data) {
 #' @examples
 #' data <- load_data(tax_level="ASV")
 #' fit_GP(data, host="ACA", tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
-fit_GP <- function(data, host, tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90,
-                   date_lower_limit=NULL, date_upper_limit=NULL, alr_ref=NULL, n_samples=100, MAP=FALSE,
-                   ...) {
+fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_lower_limit=NULL, date_upper_limit=NULL,
+                   alr_ref=NULL, n_samples=100, MAP=FALSE, ...) {
   if(MAP) {
     cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
   } else {
@@ -155,7 +143,7 @@ fit_GP <- function(data, host, tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days
   
   # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
   host <<- host
-  host_data <- subset_samples(data, sname==host)
+  host_data <- subset_samples(data, sname == host)
   
   # encode observations as differences from baseline in units of days
   host_metadata <- sample_data(host_data)
@@ -210,8 +198,12 @@ fit_GP <- function(data, host, tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days
   SE_rho <- sqrt(-SE_days_to_baseline^2/(2*log(dc))) # back calculate the decay
   
   # define the composite kernel over samples
-  Gamma <- function(X) SE(X, sigma=SE_sigma, rho=SE_rho, jitter=1e-08) +
-    PER(X, sigma=PER_sigma, rho=1, period=365, jitter=1e-08)
+  Gamma <- function(X) {
+    Gamma_scale <- 2 # this seems to work well
+    jitter <- 1e-08
+    SE(X, sigma = sqrt(Gamma_scale/2), rho = SE_rho, jitter = jitter) +
+      PER(X, sigma = sqrt(Gamma_scale/2), rho = 1, period = 365, jitter = jitter)
+  }
   
   # use a default ALR prior
   prior_params <- default_ALR_prior(D)
@@ -225,20 +217,21 @@ fit_GP <- function(data, host, tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days
     n_samples <- 0
   }
   fit <- stray::basset(Y, observations, prior_params$upsilon, Theta, Gamma, prior_params$Xi,
-                       n_samples=n_samples, ret_mean=MAP, ...)
+                       n_samples = n_samples, ret_mean = MAP, 
+                       b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
+                       max_iter = 10000L, optim_method = "adam")
 
   if(MAP) {
-    # fill out dimensions
+    # fill out dimensions; some function (including stray predictive functions) expect arrays
+    # not matrices here
     fit <- fix_MAP_dims(fit)
   }
 
   # pack up results
-  fit_obj <- list(Y=Y, alr_ys=alr_ys, alr_ref=alr_ref, X=observations, fit=fit)
+  fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, X = observations, fit = fit)
   
   # a hack: for later prediction, these will need to be available in the workspace for Gamma
-  fit_obj$kernelparams$SE_sigma <- SE_sigma
   fit_obj$kernelparams$SE_rho <- SE_rho
-  fit_obj$kernelparams$PER_sigma <- PER_sigma
 
   # save results
   if(MAP) {

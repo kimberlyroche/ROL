@@ -1,0 +1,148 @@
+---
+title: "Introduction"
+author: "Kim Roche"
+date: "6/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading data
+
+We need to specify some inclusion criteria: ```host_sample_min``` specifies the minimum number of samples a host must have; taxa must have at least a presence of ```count_threshold``` in at least the proportion of per-host samples specified by ```sample_threshold``` to be included (otherwise they are groups into an "other" category).
+
+The loaded object is a phyloseq object and can be manipulated as such!
+
+```{r load_data}
+suppressWarnings(suppressMessages(library(phyloseq)))
+suppressWarnings(suppressMessages(library(ROL)))
+
+tax_level <- "ASV"
+data <- load_data(tax_level = tax_level, host_sample_min = 75, count_threshold = 5, sample_threshold = 0.2)
+metadata <- sample_data(data)
+cat(paste0("There are ",length(unique(metadata$sname))," unique hosts in this data set and a total of ",phyloseq::nsamples(data)," samples!\n"))
+```
+
+## Stacked bar plots
+
+Stacked bar plots can be rendered per-host (here, for host "Pebble") as:
+
+```{r plot_peb1}
+plot_timecourse(data, host = "PEB", gapped = FALSE, legend = TRUE, selected_samples = NULL, show_plot = TRUE)
+```
+
+The ```gapped``` argument specifies whether or not to visualize gaps in sampling:
+
+```{r plot_peb2}
+plot_timecourse(data, host = "PEB", gapped = TRUE, legend = TRUE, selected_samples = NULL, show_plot = TRUE)
+```
+
+## Visualizing autocorrelation
+
+All subsequent computation is pretty costly, so we'll use phyloseq's ```subset_samples``` method to subset to a tiny data set of three individuals: "Wiper" (WIP), "Vapour" (VAP), and "Nike" (NIK).
+
+```{r subset_ds}
+include_hosts <- c("WIP", "VAP", "NIK")
+data <- subset_samples(data, sname %in% include_hosts)
+metadata <- sample_data(data)
+cat(paste0("There are ",length(unique(metadata$sname))," unique hosts in this data set and a total of ",phyloseq::nsamples(data)," samples!\n"))
+```
+
+We can visualize autocorrelation in two ways: mean autocorrelation only (relatively quick to calculate) or intervals of autocorrelation, which repeatedly resamples.
+
+Mean AC is visualized as:
+
+```{r mean_ac}
+lagged_ac <- calc_autocorrelation(data, lag_units = "weeks", lag_max = 52*2, resample = FALSE)
+plot_mean_autocorrelation(lagged_ac, show_plot = TRUE)
+```
+
+To visualize with an uncertainty interval, we would specify the arguments ```resample`` and ```resample_rate```. Note that this (un-optimized) code can take *hours* to run!
+
+## Fitting models
+
+Models are fit in the additive logratio and -- very anecdotally -- optimization seem fits seem stabler if we use as the ALR reference taxon, one with about median log abundance. The ```formalize_parameters``` function calculates this for us and returns the empirical variance, which we can use (but don't by default) to scale the kernel parameters.
+
+```{r interval_ac}
+params <- formalize_parameters(data)
+str(params)
+```
+
+For demo purposes, we'll fit two models for each host, a MAP (point estimate) only fit and a full posterior fit with just a few posterior samples for illustration purposes.
+
+```{r model_fit_map}
+for(host in include_hosts) {
+  # fit MAP and full; the output is saved to designated directories
+  fit_GP(data, host = host, tax_level = tax_level, SE_days_to_baseline = 90, alr_ref = params$alr_ref, MAP = TRUE)
+  fit_GP(data, host = host, tax_level = tax_level, SE_days_to_baseline = 90, alr_ref = params$alr_ref, n_samples = 10, MAP = FALSE)
+}
+```
+
+We'll visualize the posterior predictive plot over an arbitrary taxon (via the ```predict_coords``` argument). This function assumes that a fitted model meeting these criteria (host and taxonomic level) exists in the appropriate directory. Note, this function also takes minutes to run as prediction over long time intervals can be slow.
+
+```{r viz_pp}
+plot_posterior_predictive(host = "WIP", tax_level = tax_level, predict_coords = c(1), show_plot = TRUE)
+```
+
+And we can visualize the MAP covariance and correlation matrices between taxa in the ALR. (Still to do: allow for visualization in other logratio representations.)
+
+```{r viz_cov}
+plot_MAP_covariance(host = "WIP", tax_level = tax_level, show_plot = TRUE)
+```
+
+## Posterior visualization
+
+We first need to calculate posterior distances between samples. Though it's trivial to visualize, we'll do this on the MAP estimates since it will be very fast. Then we calculate the embedding, which returns the top eigenvectors.
+
+```{r calc_post_d}
+calc_posterior_distances(tax_level = tax_level, which_measure = "Sigma", MAP = FALSE)
+embed_posteriors(tax_level = tax_level, which_measure = "Sigma", MAP = TRUE)
+```
+
+Finally, plot the embedding.
+
+```{r embed}
+plot_ordination(tax_level = tax_level, which_measure = "Sigma", annotation = "host", MAP = TRUE, show_plot = TRUE)
+```
+
+## Assessing universality
+
+Load the MAP estimates of bacterial covariance in the CLR.
+
+```{r map_cov}
+logratio <- "clr"
+Sigmas <- load_MAP_estimates(tax_level = tax_level, logratio = logratio)
+```
+
+Then plot the heatmap, where our 3 hosts are rows and all interactions between taxa are columns. These are hierarchically clustered, such that like interactions (across hosts) should be visible as vertical stripes.
+
+```{r univ_heatmap}
+plot_interaction_heatmap(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas, show_plot = TRUE, return_matrix = FALSE)
+```
+
+Get the interaction matrix (hote that this can be returned by ```plot_interaction_heatmap``` above).
+
+```{r get_univ}
+interaction_matrix <- get_pairwise_correlations(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas)
+str(interaction_matrix)
+```
+
+Get the (weighted) universality score for (1) an single interaction and (2) a CLR sequence variant (~bacterium).
+
+```{r univ_score}
+single_pairwise_score <- calc_universality_score(interaction_matrix$interactions[,1])
+cat("The universality score of interaction",interaction_matrix$labels[1],"is",round(single_pairwise_score, 3),"\n")
+
+sv_scores <- calc_microbe_universality_score(tax_level = tax_level, Sigmas = Sigmas)
+cat(names(sv_scores)[1],"has universality score:",round(sv_scores[[1]], 3),"\n")
+```
+
+
+
+
+
+
+
+

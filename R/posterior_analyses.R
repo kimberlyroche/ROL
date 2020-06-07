@@ -51,9 +51,11 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
     Sigma <- fit$Sigma
     if(which_measure == "Sigma") {
       if(which_distance == "Riemannian") {
-        Sigma <- Sigma[,,1:n_samples]
-        # symmetrize this guy
-        Sigma <- (Sigma + t(Sigma))/2
+        Sigma <- Sigma[,,1:n_samples,drop=F]
+        for(j in 1:n_samples) {
+          # symmetrize this guy; genuinely can't remember why this was necessary
+          Sigma[,,j] <- (Sigma[,,j] + t(Sigma[,,j]))/2
+        }
         if(MAP & spike_in) {
           # here we know n_samples == 1
           offset1 <- (i-1)*P*2+1
@@ -581,7 +583,10 @@ plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
   df <- driver::gather_array(fit_obj$fit$Sigma[,,1], "value", "row", "col")
   p <- ggplot(df, aes(row, col)) +
     geom_tile(aes(fill = value), colour = "white") +
-    scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred")
+    scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred") +
+    xlab("logratio taxon 1") +
+    ylab("logratio taxon 2") +
+    labs(fill = "covariance")
   if(show_plot) {
     show(p)
   }
@@ -592,7 +597,10 @@ plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
   df <- driver::gather_array(cov2cor(fit_obj$fit$Sigma[,,1]), "value", "row", "col")
   p <- ggplot(df, aes(row, col)) +
     geom_tile(aes(fill = value), colour = "white") +
-    scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred")
+    scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred") +
+    xlab("logratio taxon 1") +
+    ylab("logratio taxon 2") +
+    labs(fill = "correlation")
   if(show_plot) {
     show(p)
   }
@@ -629,10 +637,8 @@ plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL
   }
 
   # a dumb hack for now; these need to be global
-  SE_sigma <<- fit_obj$kernelparams$SE_sigma
   SE_rho <<- fit_obj$kernelparams$SE_rho
-  PER_sigma <<- fit_obj$kernelparams$PER_sigma
-  
+
   # note: these predictions are in the ALR
   predict_obj <- make_posterior_predictions(fit_obj$X, fit_obj$fit)
 

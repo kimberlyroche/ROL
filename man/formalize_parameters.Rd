@@ -10,16 +10,9 @@ formalize_parameters(data)
 \item{data}{a phyloseq object}
 }
 \value{
-list containing variance recommended for SE and PER kernels
+list containing median log abundance taxon and mean empirical total variance
+across hosts using this ALR representation
 }
 \description{
 Generate empirical estimates for variance components to use in the Gaussian process
-}
-\details{
-The SE and PER kernels are apportioned the empirical ALR variance, split 90/10 
-between the kernels.
-}
-\examples{
-params <- default_ALR_prior(D=100, log_var_scale=1)
-Sigma <- matrixsampling::rinvwishart(1, params$upsilon, params$Xi)[,,1]
 }

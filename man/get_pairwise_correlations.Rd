@@ -4,8 +4,7 @@
 \alias{get_pairwise_correlations}
 \title{Get all pairwise (MAP) correlations between microbes at designated taxonomic level}
 \usage{
-get_pairwise_correlations(tax_level = "ASV", logratio = "alr",
-  Sigmas = NULL)
+get_pairwise_correlations(tax_level = "ASV", logratio = "alr", Sigmas = NULL)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

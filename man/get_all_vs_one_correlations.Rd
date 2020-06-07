@@ -4,8 +4,12 @@
 \alias{get_all_vs_one_correlations}
 \title{Get correlations between one microbe and all others at designated taxonomic level}
 \usage{
-get_all_vs_one_correlations(taxon_idx, tax_level = "ASV",
-  logratio = "alr", Sigmas = NULL)
+get_all_vs_one_correlations(
+  taxon_idx,
+  tax_level = "ASV",
+  logratio = "alr",
+  Sigmas = NULL
+)
 }
 \arguments{
 \item{taxon_idx}{the logratio coordinate to render correlations against}
