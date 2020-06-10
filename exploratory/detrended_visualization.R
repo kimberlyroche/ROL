@@ -1,75 +1,90 @@
-library(stray)
+library(phyloseq)
+library(ROL)
+library(ggplot2)
 
-# load the stuff that needs to be global 
-data <- load_data(tax_level="ASV")
-params <- formalize_parameters(data)
-data <- subset_samples(data, sname == host)
+# to do: (1) run this for many different individuals
+#        (2) incorporate their lagged AC
+#        (3) ribbon plot for Lambda, Lambda_detrended
+
+tax_level <- "ASV"
+data <- load_data(tax_level = tax_level, host_sample_min = 75, count_threshold = 5, sample_threshold = 0.2)
 metadata <- sample_data(data)
+cat(paste0("There are ",length(unique(metadata$sname))," unique hosts in this data set and a total of ",phyloseq::nsamples(data)," samples!\n"))
+params <- formalize_parameters(data)
 
-# read diet covariate data
-data.diet <- readRDS("input/ps_w_covs.RDS")
-data.name_mapping <- read.csv("input/host_subject_id_to_sname_key.csv")
-data.name_mapping <- unique(data.name_mapping[,c("sname","host_subject_id2")])
-host.num <- as.character(data.name_mapping[data.name_mapping$sname == host,]$host_subject_id2)
-data.diet <- subset_samples(data.diet, host == host.num)
-metadata.diet <- sample_data(data.diet)
-
-# pull out the count table (taxa x samples)
-Y <- t(otu_table(data)@.Data)
-
-# pull dimensions (again)
-D <- nrow(Y)
-N <- ncol(Y)
-
-colnames(Y) <- NULL
-rownames(Y) <- NULL
-
-Y <- Y[c(setdiff(1:D,params$alr_ref),params$alr_ref),]
-
-# define the composite kernel over samples
-Gamma.basic <- function(X) {
-  dc <- 0.1 # desired minimum correlation
-  rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
-  Gamma_scale <- params$total_variance
-  SE(X, sigma = sqrt(Gamma_scale), rho = rho, jitter = 1e-08)
+for(host in unique(metadata$sname)) {
+  cat("Fitting",host,"\n")
+  fit_GP(data, host = host, tax_level = tax_level, SE_days_to_baseline = 90, alr_ref = params$alr_ref, MAP = TRUE)
 }
 
-# define the composite kernel over samples
-# FYI (myself): the optimization is pretty brittle here to the scale of Gamma giving failed (?) convergence
-#               (Cholesky of Hessian fails)
-Gamma.extra <- function(X) {
-  jitter <- 1e-08
-  # back calculate the decay in correlation to approx. 0.1 at 90 days
-  dc <- 0.1 # desired minimum correlation
-  rho <- sqrt(-90^2/(2*log(dc))) # back calculate the decay (90 days to a drop-off of)
-  Gamma_scale <- params$total_variance
-  base_sigma_sq <- Gamma_scale * 0.5
-  PER_sigma_sq <- Gamma_scale * 0.5
-  SE(X[1,,drop=F], sigma = sqrt(base_sigma_sq), rho = rho, jitter = jitter) +
-    PER(X[1,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, period = 365, jitter = jitter) +
-    SE(X[2:6,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, jitter = jitter) # a few diet PCs
+use_Eta <- FALSE
+use_detrended <- FALSE
+
+df <- data.frame(x = c(), y = c(), host = c())
+for(host in unique(metadata$sname)) {
+  fit <- readRDS(paste0("output/model_fits/ASV_MAP/",host,"_bassetfit.rds"))
+
+  # calculate autocorrelation for Lambda
+  observations <- fit$X[1,]
+  Lambda <- fit$fit$Lambda[,,1] # this is D-1 taxa x N samples
+  Eta <- fit$fit$Eta[,,1]
+  Theta <- fit$fit$Theta(fit$fit$X)
+  Gamma <- fit$fit$Gamma(fit$fit$X)
+  Gamma_sqrt <- chol(Gamma)
+  
+  Lambda_detrended <- Theta + (Lambda - Theta)%*%solve(Gamma_sqrt)
+
+  lags <- list()
+  for(i in 1:(length(observations)-1)) {
+    for(j in (i+1):length(observations)) {
+      diff_week <- round(abs(observations[i] - observations[j])/7)
+      if(is.na(diff_week)) {
+        cat(i,",",j,"\n")
+      }
+      lag_str <- as.character(diff_week)
+      if(use_Eta) {
+        if(use_detrended) {
+          Eta_detrended <- Lambda_detrended + (Eta - Lambda)
+          ij_correlation <- cor(Eta_detrended[,i], Eta_detrended[,j])
+        } else {
+          ij_correlation <- cor(fit$fit$Eta[,i,1], fit$fit$Eta[,j,1])
+        }
+      } else {
+        if(use_detrended) {
+          ij_correlation <- cor(Lambda_detrended[,i], Lambda_detrended[,j])
+        } else {
+          ij_correlation <- cor(Lambda[,i], Lambda[,j])
+        }
+      }
+      if(lag_str %in% names(lags)) {
+        lags[[lag_str]] <- c(lags[[lag_str]], ij_correlation)
+      } else {
+        lags[[lag_str]] <- c(ij_correlation)
+      }
+    }
+  }
+  df <- rbind(df, data.frame(x = as.numeric(names(lags)), y = sapply(lags, function(lag) mean(lag)), host = host))
 }
 
-# ALR prior for Sigma (bacterial covariance)
-upsilon <- D - 1 + 10 # specify low certainty/concentration
-GG <- cbind(diag(D-1), -1) # log contrast for ALR with last taxon as reference
-Xi <- GG%*%(diag(D))%*%t(GG) # take diag as covariance over log abundances
-Xi <- Xi*(upsilon-D-1)
+p <- ggplot(df[df$x < 104,]) +
+  geom_smooth(aes(x = x, y = y)) +
+  geom_point(aes(x = x, y = y)) +
+  xlab("lag (weeks)") +
+  ylab("ACF")
+show(p)
+if(use_Eta) {
+  save_file <- "Eta"
+} else {
+  save_file <- "Lambda"
+}
+if(use_detrended) {
+  save_file <- paste0(save_file, "_detrended")
+}
+save_file <- paste0(save_file, ".png")
+ggsave(paste0("C:/Users/kim/Desktop/",save_file), p, dpi = 100, units = "in", height = 6, width = 10)
 
-# define the prior over baselines as the empirical mean alr(Y)
-alr_ys <- driver::alr((t(Y) + 0.5))
-alr_means <- colMeans(alr_ys)
-Theta <- function(X) matrix(alr_means, D-1, ncol(X))
 
 
 
 
 
-
-host <- "DUI"
-data <- readRDS(paste0(host,"_fit_basic.rds"))
-Lambda_hat <- apply(data$Lambda, c(1,2), mean)
-Sigma_hat <- apply(data$Sigma, c(1,2), mean)
-Theta_applied <- data$Theta(data$X)
-Gamma_applied <- data$Gamma(data$X)
-L_Gamma <- t(chol(Gamma_applied))
