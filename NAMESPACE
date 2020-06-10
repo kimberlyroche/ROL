@@ -3,6 +3,7 @@
 export(PER)
 export(agglomerate_data)
 export(assign_concise_taxonomy)
+export(build_design_matrix)
 export(calc_autocorrelation)
 export(calc_microbe_universality_score)
 export(calc_posterior_distance_row)

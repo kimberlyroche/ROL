@@ -92,14 +92,15 @@ default_ALR_prior <- function(D, log_var_scale=1) {
 #' @export
 formalize_parameters <- function(data) {
   metadata <- sample_data(data)
+  sample_status <- metadata$sample_status # replicate labels
   
   # pick an intermediate abundance ALR reference taxon
   counts <- otu_table(data)@.Data
   alr_ref <- which(order(apply(counts, 2, mean)) == round(ncol(counts)/2))
-
+  
   # apply the ALR we'll model in
   log_ratios <- alr(counts + 0.5, d=alr_ref) # samples x taxa
-
+  
   # get mean within-host ALR total variance
   host_var <- c()
   for(host in unique(metadata$sname)) {
@@ -111,8 +112,49 @@ formalize_parameters <- function(data) {
       host_var <- c(host_var, diag(sample_var))
     }
   }
+  
   mean_total_var <- mean(host_var)
+  
+  # return squared exponential kernel variance as 45% (90%/2) the total empirical ALR variance and the periodic
+  # kernel variance as 5% (10%/2) the total empirical ALR variance
   return(list(total_variance=mean_total_var, alr_ref=alr_ref))
+}
+
+#' Build the design matrix
+#' 
+#' @param metadata metadata data.frame associated with the data phyloseq object
+#' @param metadata.diet metadata data.frame parsed from separate diet and climate data
+#' @return matrix with observation time (days), diet PCs, and climate (rainfall and max temp) covariates
+#' @export
+build_design_matrix <- function(metadata, metadata.diet = NULL) {
+  baseline_date <- metadata$collection_date[1]
+  X <- sapply(metadata$collection_date, function(x) round(difftime(x, baseline_date, units="days"))) + 1
+  # render X a row matrix
+  dim(X) <- c(1, length(X))
+  
+  if(!is.null(metadata.diet)) {
+    # just a few diet PCs for now
+    X <- rbind(X, t(metadata.diet[,c("diet_PC1","diet_PC2","diet_PC3"),drop=F]))
+    X <- rbind(X, t(metadata.diet[,c("rain_monthly","tempmax_monthly")]))
+  }
+
+  # do samples line up?
+  if(sum((metadata$sample_id == metadata.diet$sample_id) == FALSE) > 0) {
+    stop("Metadata and metadata-diet samples don't line up!\n")
+  }
+
+  # standardize diet and climate predictors and impute NAs
+  if(nrow(X) > 1) {
+    for(i in 2:nrow(X)) {
+      X[i,] <- scale(X[i,])
+      if(length(which(is.na(X[i,]))) > 0) {
+        x <- 1:length(X[i,])
+        y <- X[i,]
+        X[i,] <- approx(x = x, y = y, xout = x, method = "linear")$y
+      }
+    }
+  }
+  return(X)
 }
 
 #' Fit a Gaussian process to a single host series using basset
@@ -128,6 +170,7 @@ formalize_parameters <- function(data) {
 #' @param MAP compute MAP estimate only (as single posterior sample)
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
+#' @import phyloseq
 #' @import stray
 #' @export
 #' @examples
@@ -147,11 +190,22 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   
   # encode observations as differences from baseline in units of days
   host_metadata <- sample_data(host_data)
+
+  # read diet and climate covariate data
+  data.diet <- readRDS("input/ps_w_covs.RDS")
+  data.name_mapping <- read.csv("input/host_subject_id_to_sname_key.csv")
+  data.name_mapping <- unique(data.name_mapping[,c("sname","host_subject_id2")])
+  host.num <- as.character(data.name_mapping[data.name_mapping$sname == host,]$host_subject_id2)
+  data.diet <- subset_samples(data.diet, host == host.num)
+  metadata.diet <- sample_data(data.diet)
+
   baseline_date <- host_metadata$collection_date[1]
   observations <- sapply(host_metadata$collection_date, function(x) round(difftime(x, baseline_date, units="days"))) + 1
   
   # pull out the count table
   Y <- otu_table(host_data)@.Data
+
+  X <- build_design_matrix(host_metadata, metadata.diet)
   
   # if a specified data lower and upper limit have been specified, chop the observed series down
   # to this range
@@ -195,14 +249,18 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   # back-calculate the squared exponential bandwidth parameter by finding a bandwidth that gives
   # a desired minimum correlation at the number of days specified by SE_days_to_baseline  
   dc <- 0.1 # desired minimum correlation
-  SE_rho <- sqrt(-SE_days_to_baseline^2/(2*log(dc))) # back calculate the decay
+  rho <- sqrt(-SE_days_to_baseline^2/(2*log(dc))) # back calculate the decay
   
   # define the composite kernel over samples
   Gamma <- function(X) {
-    Gamma_scale <- 2 # this seems to work well
     jitter <- 1e-08
-    SE(X, sigma = sqrt(Gamma_scale/2), rho = SE_rho, jitter = jitter) +
-      PER(X, sigma = sqrt(Gamma_scale/2), rho = 1, period = 365, jitter = jitter)
+    # Gamma_scale <- params$total_variance
+    Gamma_scale <- 2
+    base_sigma_sq <- Gamma_scale * 0.5
+    PER_sigma_sq <- Gamma_scale * 0.5
+    SE(X[1,,drop=F], sigma = sqrt(base_sigma_sq), rho = rho, jitter = jitter) +
+      PER(X[1,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, period = 365, jitter = jitter) +
+      SE(X[2:6,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, jitter = jitter) # a few diet PCs
   }
   
   # use a default ALR prior
@@ -216,7 +274,7 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   if(MAP) {
     n_samples <- 0
   }
-  fit <- stray::basset(Y, observations, prior_params$upsilon, Theta, Gamma, prior_params$Xi,
+  fit <- stray::basset(Y, X, prior_params$upsilon, Theta, Gamma, prior_params$Xi,
                        n_samples = n_samples, ret_mean = MAP, 
                        b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                        max_iter = 10000L, optim_method = "adam")
@@ -228,10 +286,10 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   }
 
   # pack up results
-  fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, X = observations, fit = fit)
+  fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, X = X, fit = fit)
   
   # a hack: for later prediction, these will need to be available in the workspace for Gamma
-  fit_obj$kernelparams$SE_rho <- SE_rho
+  fit_obj$kernelparams$SE_rho <- rho
 
   # save results
   if(MAP) {

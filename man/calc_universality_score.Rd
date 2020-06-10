@@ -21,5 +21,5 @@ The length of x is assumed equal to the number of hosts.
 }
 \examples{
 interaction_matrix <- get_universal_interactions(tax_level="ASV")
-score <- calc_universality_score(interaction_matrix[,1]
+score <- calc_universality_score(interaction_matrix[,1])
 }
