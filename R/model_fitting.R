@@ -157,29 +157,61 @@ build_design_matrix <- function(metadata, metadata.diet = NULL) {
   return(X)
 }
 
+#' Define a kernel (function) over samples
+#' 
+#' @param kernel_scale total variance for the composite kernel
+#' @param proportions proportion variance to attribute to each of 3 kernels (see details)
+#' @param days_to_baseline days at which squared exponential kernel decays to baseline correlation of ~0.1
+#' @details Composite kernel is built from (1) squared exponential kernel (base autocorrelation component),
+#' (2) seasonal kernel (periodic), and (3) diet and climate component (another squared exponential)
+#' @return kernel function
+#' @import stray
+#' @export
+get_Gamma <- function(kernel_scale, proportions, days_to_baseline) {
+  # back-calculate the squared exponential bandwidth parameter by finding a bandwidth that gives
+  # a desired minimum correlation at the number of days specified by SE_days_to_baseline  
+  dc <- 0.1 # desired minimum correlation
+  rho <- sqrt(-days_to_baseline^2/(2*log(dc))) # back calculate the decay
+  Gamma <- function(X) {
+    jitter <- 1e-08
+    proportions <- abs(proportions)/sum(abs(proportions)) # just in case we pass something that isn't a composition
+    part.1 <- kernel_scale * proportions[1]
+    part.2 <- kernel_scale * proportions[2]
+    part.3 <- kernel_scale * proportions[3]
+    SE(X[1,,drop=F], sigma = sqrt(part.1), rho = rho, jitter = jitter) +
+      PER(X[1,,drop=F], sigma = sqrt(part.2), rho = 1, period = 365, jitter = jitter) +
+      SE(X[2:6,,drop=F], sigma = sqrt(part.3), rho = 1, jitter = jitter) # a few diet PCs
+  }
+  return(Gamma)
+}
+
 #' Fit a Gaussian process to a single host series using basset
 #' 
 #' @param data a phyloseq object
 #' @param host host short name (e.g. ACA)
+#' @param kernels composite kernel function
 #' @param tax_level taxonomic level at which to agglomerate data
-#' @param SE_days_to_baseline days at which squared exponential kernel decays to baseline correlation
-#' @param date_lower_limit minimum date to consider (string format: YYYY-MM-DD)
-#' @param date_upper_limit maximum date to consider (string format: YYYY-MM-DD)
 #' @param alr_ref index of reference ALR coordinate
 #' @param n_samples number of posterior samples to draw
 #' @param MAP compute MAP estimate only (as single posterior sample)
+#' @param loo if TRUE, one sample is left out, predicted, and RMSE calculated
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
 #' @import phyloseq
 #' @import stray
 #' @export
 #' @examples
-#' data <- load_data(tax_level="ASV")
-#' fit_GP(data, host="ACA", tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
-fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_lower_limit=NULL, date_upper_limit=NULL,
-                   alr_ref=NULL, n_samples=100, MAP=FALSE, ...) {
+#' tax_level <- "ASV"
+#' data <- load_data(tax_level = tax_level)
+#' params <- formalize_parameters(data)
+#' kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
+#' fit_GP(data, host = "GAB", tax_level = tax_level, kernels = kernels, alr_ref = params$alr_ref, MAP = TRUE)
+fit_GP <- function(data, host, kernels, tax_level="ASV", alr_ref=NULL, n_samples=100, MAP=FALSE, loo=FALSE) {
   if(MAP) {
     cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
+    if(loo) {
+      stop("Leave-one-out predictions only work for full posterior estimates (currently).\n")
+    }
   } else {
     cat(paste0("Fitting stray::basset model to host ",host,"\n"))
   }
@@ -199,38 +231,10 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   data.diet <- subset_samples(data.diet, host == host.num)
   metadata.diet <- sample_data(data.diet)
 
-  baseline_date <- host_metadata$collection_date[1]
-  observations <- sapply(host_metadata$collection_date, function(x) round(difftime(x, baseline_date, units="days"))) + 1
-  
   # pull out the count table
   Y <- otu_table(host_data)@.Data
-
-  X <- build_design_matrix(host_metadata, metadata.diet)
-  
-  # if a specified data lower and upper limit have been specified, chop the observed series down
-  # to this range
-  lower_idx <- NULL
-  upper_idx <- NULL
-  if(!is.null(date_lower_limit) & !is.null(date_upper_limit)) {
-    lower_idx <- which(names(observations) >= date_lower_limit)
-    upper_idx <- which(names(observations) <= date_upper_limit)
-  }
-  if(length(lower_idx) > 0 & length(upper_idx) > 0) {
-    unique_lower_idx <- min(lower_idx)
-    unique_upper_idx <- max(upper_idx)
-    # subset dates
-    Y_pre <- Y
-    Y <- t(Y_pre[unique_lower_idx:unique_upper_idx,])
-    rm(Y_pre)
-    # set first observation to t=1
-    observations_pre <- observations
-    observations <- matrix(observations_pre[unique_lower_idx:unique_upper_idx], nrow=1) - observations_pre[unique_lower_idx] + 1
-    rm(observations_pre)
-  } else {
-    # just clean up
-    Y <- t(Y)
-    dim(observations) <- c(1, length(observations))
-  }
+  X <- build_design_matrix(host_metadata, metadata.diet) # covariates x samples
+  Y <- t(Y)                                              # taxa x samples
   
   # get dimensions
   D <- nrow(Y)
@@ -241,28 +245,19 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   if(!is.null(alr_ref)) {
     Y <- Y[c(setdiff(1:D,alr_ref),alr_ref),]
   }
-  
+
   # strip off sequence variant labels
   colnames(Y) <- NULL
   rownames(Y) <- NULL
-  
-  # back-calculate the squared exponential bandwidth parameter by finding a bandwidth that gives
-  # a desired minimum correlation at the number of days specified by SE_days_to_baseline  
-  dc <- 0.1 # desired minimum correlation
-  rho <- sqrt(-SE_days_to_baseline^2/(2*log(dc))) # back calculate the decay
-  
-  # define the composite kernel over samples
-  Gamma <- function(X) {
-    jitter <- 1e-08
-    # Gamma_scale <- params$total_variance
-    Gamma_scale <- 2
-    base_sigma_sq <- Gamma_scale * 0.5
-    PER_sigma_sq <- Gamma_scale * 0.5
-    SE(X[1,,drop=F], sigma = sqrt(base_sigma_sq), rho = rho, jitter = jitter) +
-      PER(X[1,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, period = 365, jitter = jitter) +
-      SE(X[2:6,,drop=F], sigma = sqrt(PER_sigma_sq/2), rho = 1, jitter = jitter) # a few diet PCs
+
+  if(loo) {
+    loo_samples <- sample(1:N)[1]
+    X_loo <- X[,loo_samples,drop=F]
+    X <- X[,setdiff(1:N, loo_samples)]
+    Y_loo <- Y[,loo_samples,drop=F]
+    Y <- Y[,setdiff(1:N, loo_samples)]
   }
-  
+
   # use a default ALR prior
   prior_params <- default_ALR_prior(D)
   
@@ -274,7 +269,7 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   if(MAP) {
     n_samples <- 0
   }
-  fit <- stray::basset(Y, X, prior_params$upsilon, Theta, Gamma, prior_params$Xi,
+  fit <- stray::basset(Y, X, prior_params$upsilon, Theta, kernels, prior_params$Xi,
                        n_samples = n_samples, ret_mean = MAP, 
                        b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                        max_iter = 10000L, optim_method = "adam")
@@ -285,6 +280,20 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
     fit <- fix_MAP_dims(fit)
   }
 
+  if(loo) {
+    size <- matrix(median(colSums(fit$Y)), 1, n_samples)
+    predicted <- predict(fit, X_loo, response = "Y", iter = fit$iter, size = size)
+    sse <- sapply(1:n_samples, function(i) {
+      sum((predicted[,1,i] - Y_loo[,1])^2)
+    })
+    log_sse <- sapply(1:n_samples, function(i) {
+      sum((log(predicted[,1,i] + 0.5) - log(Y_loo[,1] + 0.5))^2)
+    })
+    rmse <- sqrt(mean(sse))
+    log_rmse <- sqrt(mean(log_sse))
+    return(list(rmse = rmse, log_rmse = log_rmse))
+  }
+  
   # pack up results
   fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, X = X, fit = fit)
   
@@ -299,3 +308,36 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   }
   saveRDS(fit_obj, file.path(save_dir,paste0(host,"_bassetfit.rds")))
 }
+
+#' Perform leave-one-out cross-validation for a given host and kernel configuration choice
+#' 
+#' @param data a phyloseq object
+#' @param host host short name (e.g. ACA)
+#' @param kernels composite kernel function
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param iterations number of CV iterations to perform; this should be <= n_samples for this host
+#' @details average error (currently log RMSE)
+#' @return NULL
+#' @export
+#' @examples
+#' tax_level <- "ASV"
+#' data <- load_data(tax_level = tax_level)
+#' kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
+#' loo_cv(data, host = "GAB", kernels <- kernels, tax_level = tax_level, iterations = 2)
+loo_cv <- function(data, host, kernels, tax_level = "ASV", iterations = NULL) {
+  params <- formalize_parameters(data)
+  error <- c()
+  for(i in 1:iterations) {
+    cat("CV iteration",i,"for host",host,"...\n")
+    error <- c(error, fit_GP(data, host, kernels, tax_level, alr_ref = params$alr_ref, n_samples = 100, MAP = FALSE, loo = TRUE)$log_rmse)
+  }
+  return(mean(error))
+}
+
+
+
+
+
+
+
+
