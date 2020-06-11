@@ -7,14 +7,12 @@
 fit_GP(
   data,
   host,
+  kernels,
   tax_level = "ASV",
-  SE_days_to_baseline = 90,
-  date_lower_limit = NULL,
-  date_upper_limit = NULL,
   alr_ref = NULL,
   n_samples = 100,
   MAP = FALSE,
-  ...
+  loo = FALSE
 )
 }
 \arguments{
@@ -22,19 +20,17 @@ fit_GP(
 
 \item{host}{host short name (e.g. ACA)}
 
+\item{kernels}{composite kernel function}
+
 \item{tax_level}{taxonomic level at which to agglomerate data}
-
-\item{SE_days_to_baseline}{days at which squared exponential kernel decays to baseline correlation}
-
-\item{date_lower_limit}{minimum date to consider (string format: YYYY-MM-DD)}
-
-\item{date_upper_limit}{maximum date to consider (string format: YYYY-MM-DD)}
 
 \item{alr_ref}{index of reference ALR coordinate}
 
 \item{n_samples}{number of posterior samples to draw}
 
 \item{MAP}{compute MAP estimate only (as single posterior sample)}
+
+\item{loo}{if TRUE, one sample is left out, predicted, and RMSE calculated}
 }
 \description{
 Fit a Gaussian process to a single host series using basset
@@ -43,6 +39,9 @@ Fit a Gaussian process to a single host series using basset
 Fitted model and metadata saved to designated model output directory.
 }
 \examples{
-data <- load_data(tax_level="ASV")
-fit_GP(data, host="ACA", tax_level="ASV", SE_sigma=1, PER_sigma=1, SE_days_to_baseline=90, MAP=FALSE)
+tax_level <- "ASV"
+data <- load_data(tax_level = tax_level)
+params <- formalize_parameters(data)
+kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
+fit_GP(data, host = "GAB", tax_level = tax_level, kernels = kernels, alr_ref = params$alr_ref, MAP = TRUE)
 }
