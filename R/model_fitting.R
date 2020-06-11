@@ -195,7 +195,7 @@ fit_GP <- function(data, host, tax_level="ASV", SE_days_to_baseline=90, date_low
   data.diet <- readRDS("input/ps_w_covs.RDS")
   data.name_mapping <- read.csv("input/host_subject_id_to_sname_key.csv")
   data.name_mapping <- unique(data.name_mapping[,c("sname","host_subject_id2")])
-  host.num <- as.character(data.name_mapping[data.name_mapping$sname == host,]$host_subject_id2)
+  host.num <<- as.character(data.name_mapping[data.name_mapping$sname == host,]$host_subject_id2)
   data.diet <- subset_samples(data.diet, host == host.num)
   metadata.diet <- sample_data(data.diet)
 

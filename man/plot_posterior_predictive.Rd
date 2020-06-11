@@ -4,13 +4,8 @@
 \alias{plot_posterior_predictive}
 \title{Plot posterior predictive intervals of Eta (denoised ALR abundances) over observed time series for designated host}
 \usage{
-plot_posterior_predictive(
-  host,
-  tax_level = "ASV",
-  predict_coords = NULL,
-  logratio = "clr",
-  show_plot = FALSE
-)
+plot_posterior_predictive(host, tax_level = "ASV",
+  predict_coords = NULL, logratio = "clr", show_plot = FALSE)
 }
 \arguments{
 \item{host}{host short name (e.g. ACA)}

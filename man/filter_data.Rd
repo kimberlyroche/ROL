@@ -4,12 +4,8 @@
 \alias{filter_data}
 \title{Filter out low abundance taxa}
 \usage{
-filter_data(
-  data,
-  tax_level = NULL,
-  count_threshold = 5,
-  sample_threshold = 0.2
-)
+filter_data(data, tax_level = NULL, count_threshold = 5,
+  sample_threshold = 0.2)
 }
 \arguments{
 \item{data}{a phyloseq object}
