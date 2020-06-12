@@ -15,9 +15,9 @@ Gamma.se_only <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_b
 Gamma.seasonal <- get_Gamma(kernel_scale = 2, proportions = c(0.5, 0.25, 0.25), days_to_baseline = 90)
 out_file <- file.path("output","cv_results.txt")
 
-e1 <- loo_cv(data, host = host, kernels = Gamma.se_only, tax_level = tax_level)
+e1 <- perform_cv(data, host = host, kernels = Gamma.se_only, tax_level = tax_level, holdout_proportion = 0.2)
 write(paste0(e1,"\tlog rmse\t",host,"\tSE_only"), file = out_file, append = TRUE)
-e2 <- loo_cv(data, host = host, kernels = Gamma.seasonal, tax_level = tax_level)
+e2 <- perform_cv(data, host = host, kernels = Gamma.seasonal, tax_level = tax_level, holdout_proportion = 0.2)
 write(paste0(e2,"\tlog rmse\t",host,"\tseasonal"), file = out_file, append = TRUE)
 
 # calculate autocorrelation
