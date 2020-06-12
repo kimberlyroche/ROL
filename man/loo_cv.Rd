@@ -27,5 +27,5 @@ average error (currently log RMSE)
 tax_level <- "ASV"
 data <- load_data(tax_level = tax_level)
 kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
-loo_cv(data, host = "GAB", kernels <- kernels, tax_level = tax_level, iterations = 2)
+loo_cv(data, host = "GAB", kernels <- kernels, tax_level = tax_level)
 }

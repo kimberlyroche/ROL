@@ -194,7 +194,7 @@ get_Gamma <- function(kernel_scale, proportions, days_to_baseline) {
 #' @param alr_ref index of reference ALR coordinate
 #' @param n_samples number of posterior samples to draw
 #' @param MAP compute MAP estimate only (as single posterior sample)
-#' @param loo if TRUE, one sample is left out, predicted, and RMSE calculated
+#' @param loo if non-zero, specifies the sample to leave out for CV; in this case predition error is returned
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
 #' @import phyloseq
@@ -206,10 +206,10 @@ get_Gamma <- function(kernel_scale, proportions, days_to_baseline) {
 #' params <- formalize_parameters(data)
 #' kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
 #' fit_GP(data, host = "GAB", tax_level = tax_level, kernels = kernels, alr_ref = params$alr_ref, MAP = TRUE)
-fit_GP <- function(data, host, kernels, tax_level="ASV", alr_ref=NULL, n_samples=100, MAP=FALSE, loo=FALSE) {
+fit_GP <- function(data, host, kernels, tax_level="ASV", alr_ref=NULL, n_samples=100, MAP=FALSE, loo=0) {
   if(MAP) {
     cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
-    if(loo) {
+    if(loo > 0) {
       stop("Leave-one-out predictions only work for full posterior estimates (currently).\n")
     }
   } else {
@@ -250,12 +250,11 @@ fit_GP <- function(data, host, kernels, tax_level="ASV", alr_ref=NULL, n_samples
   colnames(Y) <- NULL
   rownames(Y) <- NULL
 
-  if(loo) {
-    loo_samples <- sample(1:N)[1]
-    X_loo <- X[,loo_samples,drop=F]
-    X <- X[,setdiff(1:N, loo_samples)]
-    Y_loo <- Y[,loo_samples,drop=F]
-    Y <- Y[,setdiff(1:N, loo_samples)]
+  if(loo > 0) {
+    X_loo <- X[,loo,drop=F]
+    X <- X[,setdiff(1:N, loo)]
+    Y_loo <- Y[,loo,drop=F]
+    Y <- Y[,setdiff(1:N, loo)]
   }
 
   # use a default ALR prior
@@ -280,7 +279,7 @@ fit_GP <- function(data, host, kernels, tax_level="ASV", alr_ref=NULL, n_samples
     fit <- fix_MAP_dims(fit)
   }
 
-  if(loo) {
+  if(loo > 0) {
     size <- matrix(median(colSums(fit$Y)), 1, n_samples)
     predicted <- predict(fit, X_loo, response = "Y", iter = fit$iter, size = size)
     sse <- sapply(1:n_samples, function(i) {
@@ -318,18 +317,25 @@ fit_GP <- function(data, host, kernels, tax_level="ASV", alr_ref=NULL, n_samples
 #' @param iterations number of CV iterations to perform; this should be <= n_samples for this host
 #' @details average error (currently log RMSE)
 #' @return NULL
+#' @import phyloseq
 #' @export
 #' @examples
 #' tax_level <- "ASV"
 #' data <- load_data(tax_level = tax_level)
 #' kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
-#' loo_cv(data, host = "GAB", kernels <- kernels, tax_level = tax_level, iterations = 2)
+#' loo_cv(data, host = "GAB", kernels <- kernels, tax_level = tax_level)
 loo_cv <- function(data, host, kernels, tax_level = "ASV", iterations = NULL) {
+  if(is.null(iterations)) {
+    host <<- host
+    host_data <- subset_samples(data, sname == host)
+    # hold out about half a host's samples on average
+    iterations <- round(phyloseq::nsamples(host_data)/2)
+  }
   params <- formalize_parameters(data)
   error <- c()
   for(i in 1:iterations) {
-    cat("CV iteration",i,"for host",host,"...\n")
-    error <- c(error, fit_GP(data, host, kernels, tax_level, alr_ref = params$alr_ref, n_samples = 100, MAP = FALSE, loo = TRUE)$log_rmse)
+    cat("CV iteration",i,"/",iterations,"for host",host,"...\n")
+    error <- c(error, fit_GP(data, host, kernels, tax_level, alr_ref = params$alr_ref, n_samples = 100, MAP = FALSE, loo = i)$log_rmse)
   }
   return(mean(error))
 }
