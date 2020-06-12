@@ -544,23 +544,6 @@ plot_ordination <- function(tax_level="ASV", which_measure="Sigma", annotation="
   }
 }
 
-#' Predict from fitted basset model
-#' 
-#' @param X observations in days relative to baseline
-#' @param fit bassetfit object
-#' @param n_samples number of posterior samples to draw
-#' @details Predictions will interpolate from beginning to end of observations.
-#' @return list of prediction input (days relative to baseline) and output (Eta samples)
-#' @import stray
-#' @export
-#' @examples
-#' make_posterior_predictions(X, fit, n_samples=100)
-make_posterior_predictions <- function(X, fit) {
-  X_predict <- t(1:(max(X)))
-  predicted <- predict(fit, X_predict, response="Eta", iter=fit$iter)
-  return(list(X_predict=X_predict, Y_predict=predicted))
-}
-
 #' Plot MAP covariance matrix for designated host
 #' 
 #' @param host host short name (e.g. ACA)
@@ -621,7 +604,6 @@ plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
 #' @import dplyr
 #' @import ggplot2
 #' @import phyloseq
-#' @import dplyr
 #' @export
 #' @examples
 #' plot_posterior_predictive(host="ZIB", tax_level="ASV", predict_coords=c(1,2,3))
@@ -637,12 +619,12 @@ plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL
   }
 
   # a dumb hack for now; these need to be global
-  SE_rho <<- fit_obj$kernelparams$SE_rho
+  rho <<- fit_obj$kernelparams$rho
 
   # note: these predictions are in the ALR
-  predict_obj <- make_posterior_predictions(fit_obj$X, fit_obj$fit)
+  X_predict <- build_design_matrix_predict(fit_obj$X)
+  Eta <- predict(fit_obj$fit, X_predict, response = "Eta", iter = fit_obj$iter)
 
-  Eta <- predict_obj$Y_predict
   if(logratio != "alr") {
     lr_ys <- alr(t(fit_obj$Y) + 0.5)
     if(logratio == "clr") {
@@ -658,7 +640,7 @@ plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL
   } 
   
   for(coord in predict_coords) {
-    observations <- fit_obj$X
+    observations <- fit_obj$X[1,]
     lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
     
     # replace timepoints with observation dates for readability

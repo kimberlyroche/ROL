@@ -137,12 +137,12 @@ build_design_matrix <- function(metadata, metadata.diet = NULL) {
     X <- rbind(X, t(metadata.diet[,c("diet_PC1","diet_PC2","diet_PC3"),drop=F]))
     X <- rbind(X, t(metadata.diet[,c("rain_monthly","tempmax_monthly")]))
   }
-
+  
   # do samples line up?
   if(sum((metadata$sample_id == metadata.diet$sample_id) == FALSE) > 0) {
     stop("Metadata and metadata-diet samples don't line up!\n")
   }
-
+  
   # standardize diet and climate predictors and impute NAs
   if(nrow(X) > 1) {
     for(i in 2:nrow(X)) {
@@ -157,21 +157,51 @@ build_design_matrix <- function(metadata, metadata.diet = NULL) {
   return(X)
 }
 
+#' Build the design matrix for prediction by interpolating within the 
+#' 
+#' @param X existing design matrix
+#' @return matrix with observation time (days), diet PCs, and climate (rainfall and max temp) covariates interpolated from
+#' earliest to latest observation date
+#' @export
+build_design_matrix_predict <- function(X) {
+  last_time_point <- max(X[1,])
+  X_predict <- t(1:last_time_point)
+  n_features <- nrow(X)-1 # these are the features to (linearly) interpolate
+  for(f in 1:n_features) {
+    X_predict <- rbind(X_predict, t(approx(x = X[1,], y = X[f+1,], xout = 1:last_time_point, method = "linear")$y))
+  }
+  return(X_predict)
+}
+
+#' Define bandwidth of squared exponential kernel
+#' 
+#' @param min_correlation minimum correlation to assume between (within-host) samples
+#' @param days_to_baseline days at which squared exponential kernel decays to baseline correlation of ~0.1
+#' @return bandwidth parameter for squared exponential kernel
+#' @export
+calc_se_decay <- function(min_correlation = 0.1, days_to_baseline = 90) {
+  # back-calculate the squared exponential bandwidth parameter by finding a bandwidth that gives
+  # a desired minimum correlation at the number of days specified by days_to_baseline  
+  rho <- sqrt(-days_to_baseline^2/(2*log(min_correlation))) # back calculate the decay
+  return(rho)
+}
+
 #' Define a kernel (function) over samples
 #' 
 #' @param kernel_scale total variance for the composite kernel
 #' @param proportions proportion variance to attribute to each of 3 kernels (see details)
-#' @param days_to_baseline days at which squared exponential kernel decays to baseline correlation of ~0.1
+#' @param rho bandwidth for SE kernel
 #' @details Composite kernel is built from (1) squared exponential kernel (base autocorrelation component),
 #' (2) seasonal kernel (periodic), and (3) diet and climate component (another squared exponential)
 #' @return kernel function
 #' @import stray
 #' @export
-get_Gamma <- function(kernel_scale, proportions, days_to_baseline) {
+#' @examples
+#' rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
+#' composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), rho = rho)
+get_Gamma <- function(kernel_scale, proportions, rho) {
   # back-calculate the squared exponential bandwidth parameter by finding a bandwidth that gives
-  # a desired minimum correlation at the number of days specified by SE_days_to_baseline  
-  dc <- 0.1 # desired minimum correlation
-  rho <- sqrt(-days_to_baseline^2/(2*log(dc))) # back calculate the decay
+  # a desired minimum correlation at the number of days specified by SE_days_to_baseline
   Gamma <- function(X) {
     jitter <- 1e-08
     proportions <- abs(proportions)/sum(abs(proportions)) # just in case we pass something that isn't a composition
@@ -189,7 +219,8 @@ get_Gamma <- function(kernel_scale, proportions, days_to_baseline) {
 #' 
 #' @param data a phyloseq object
 #' @param host host short name (e.g. ACA)
-#' @param kernels composite kernel function
+#' @param composite_kernel composite kernel function
+#' @param rho bandwidth for SE kernel
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param alr_ref index of reference ALR coordinate
 #' @param n_samples number of posterior samples to draw
@@ -204,9 +235,10 @@ get_Gamma <- function(kernel_scale, proportions, days_to_baseline) {
 #' tax_level <- "ASV"
 #' data <- load_data(tax_level = tax_level)
 #' params <- formalize_parameters(data)
-#' kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
-#' fit_GP(data, host = "GAB", tax_level = tax_level, kernels = kernels, alr_ref = params$alr_ref, MAP = TRUE)
-fit_GP <- function(data, host, kernels, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE, holdout_proportion = 0) {
+#' rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
+#' composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), rho = rho)
+#' fit_GP(data, host = "GAB", composite_kernel = composite_kernel, rho = rho, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
+fit_GP <- function(data, host, composite_kernel, rho, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE, holdout_proportion = 0) {
   if(MAP) {
     cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
     if(holdout_proportion > 0) {
@@ -270,7 +302,7 @@ fit_GP <- function(data, host, kernels, tax_level = "ASV", alr_ref = NULL, n_sam
   if(MAP) {
     n_samples <- 0
   }
-  fit <- stray::basset(Y, X, prior_params$upsilon, Theta, kernels, prior_params$Xi,
+  fit <- stray::basset(Y, X, prior_params$upsilon, Theta, composite_kernel, prior_params$Xi,
                        n_samples = n_samples, ret_mean = MAP, 
                        b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                        max_iter = 10000L, optim_method = "adam")
@@ -298,7 +330,7 @@ fit_GP <- function(data, host, kernels, tax_level = "ASV", alr_ref = NULL, n_sam
   fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, X = X, fit = fit)
   
   # a hack: for later prediction, these will need to be available in the workspace for Gamma
-  fit_obj$kernelparams$SE_rho <- rho
+  fit_obj$kernelparams$rho <- rho
 
   # save results
   if(MAP) {
@@ -313,7 +345,7 @@ fit_GP <- function(data, host, kernels, tax_level = "ASV", alr_ref = NULL, n_sam
 #' 
 #' @param data a phyloseq object
 #' @param host host short name (e.g. ACA)
-#' @param kernels composite kernel function
+#' @param composite_kernel composite kernel function
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param holdout_proportion proportion of host's sample to use as a test set
 #' @param iterations number of CV iterations to perform; this should be <= n_samples for this host
@@ -324,11 +356,12 @@ fit_GP <- function(data, host, kernels, tax_level = "ASV", alr_ref = NULL, n_sam
 #' @examples
 #' tax_level <- "ASV"
 #' data <- load_data(tax_level = tax_level)
-#' kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
-#' perform_cv(data, host = "GAB", kernels = kernels, tax_level = tax_level)
-perform_cv <- function(data, host, kernels, tax_level = "ASV", holdout_proportion = 0.2) {
+#' rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
+#' composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
+#' perform_cv(data, host = "GAB", composite_kernel = composite_kernel, tax_level = tax_level)
+perform_cv <- function(data, host, composite_kernel, tax_level = "ASV", holdout_proportion = 0.2) {
   params <- formalize_parameters(data)
-  return(fit_GP(data, host, kernels, tax_level, alr_ref = params$alr_ref, n_samples = 100,
+  return(fit_GP(data, host, composite_kernel, tax_level, alr_ref = params$alr_ref, n_samples = 100,
                              MAP = FALSE, holdout_proportion = holdout_proportion)$log_rmse)
 }
 

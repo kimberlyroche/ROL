@@ -4,15 +4,26 @@
 \alias{fit_GP}
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
-fit_GP(data, host, kernels, tax_level = "ASV", alr_ref = NULL,
-  n_samples = 100, MAP = FALSE, holdout_proportion = 0)
+fit_GP(
+  data,
+  host,
+  composite_kernel,
+  rho,
+  tax_level = "ASV",
+  alr_ref = NULL,
+  n_samples = 100,
+  MAP = FALSE,
+  holdout_proportion = 0
+)
 }
 \arguments{
 \item{data}{a phyloseq object}
 
 \item{host}{host short name (e.g. ACA)}
 
-\item{kernels}{composite kernel function}
+\item{composite_kernel}{composite kernel function}
+
+\item{rho}{bandwidth for SE kernel}
 
 \item{tax_level}{taxonomic level at which to agglomerate data}
 
@@ -34,6 +45,7 @@ Fitted model and metadata saved to designated model output directory.
 tax_level <- "ASV"
 data <- load_data(tax_level = tax_level)
 params <- formalize_parameters(data)
-kernels <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
-fit_GP(data, host = "GAB", tax_level = tax_level, kernels = kernels, alr_ref = params$alr_ref, MAP = TRUE)
+rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
+composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), rho = rho)
+fit_GP(data, host = "GAB", composite_kernel = composite_kernel, rho = rho, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
 }

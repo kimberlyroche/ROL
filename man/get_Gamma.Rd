@@ -4,14 +4,14 @@
 \alias{get_Gamma}
 \title{Define a kernel (function) over samples}
 \usage{
-get_Gamma(kernel_scale, proportions, days_to_baseline)
+get_Gamma(kernel_scale, proportions, rho)
 }
 \arguments{
 \item{kernel_scale}{total variance for the composite kernel}
 
 \item{proportions}{proportion variance to attribute to each of 3 kernels (see details)}
 
-\item{days_to_baseline}{days at which squared exponential kernel decays to baseline correlation of ~0.1}
+\item{rho}{bandwidth for SE kernel}
 }
 \value{
 kernel function
@@ -22,4 +22,8 @@ Define a kernel (function) over samples
 \details{
 Composite kernel is built from (1) squared exponential kernel (base autocorrelation component),
 (2) seasonal kernel (periodic), and (3) diet and climate component (another squared exponential)
+}
+\examples{
+rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
+composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), rho = rho)
 }
