@@ -4,8 +4,13 @@
 \alias{calc_posterior_distances}
 \title{Calculate distances between all posterior samples of either Sigma or Lambda}
 \usage{
-calc_posterior_distances(tax_level = "ASV", which_measure = "Sigma",
-  which_distance = "Riemannian", MAP = FALSE, spike_in = FALSE)
+calc_posterior_distances(
+  tax_level = "ASV",
+  which_measure = "Sigma",
+  which_distance = "Riemannian",
+  MAP = FALSE,
+  spike_in = FALSE
+)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

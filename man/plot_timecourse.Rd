@@ -4,8 +4,14 @@
 \alias{plot_timecourse}
 \title{Render bar plots for an individual host's series}
 \usage{
-plot_timecourse(data, host = NULL, gapped = FALSE, legend = TRUE,
-  selected_samples = NULL, show_plot = FALSE)
+plot_timecourse(
+  data,
+  host = NULL,
+  gapped = FALSE,
+  legend = TRUE,
+  selected_samples = NULL,
+  show_plot = FALSE
+)
 }
 \arguments{
 \item{data}{a phyloseq object}

@@ -4,8 +4,16 @@
 \alias{fit_GP}
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
-fit_GP(data, host, kernels, tax_level = "ASV", alr_ref = NULL,
-  n_samples = 100, MAP = FALSE, loo = 0)
+fit_GP(
+  data,
+  host,
+  kernels,
+  tax_level = "ASV",
+  alr_ref = NULL,
+  n_samples = 100,
+  MAP = FALSE,
+  holdout_proportion = 0
+)
 }
 \arguments{
 \item{data}{a phyloseq object}
@@ -22,7 +30,7 @@ fit_GP(data, host, kernels, tax_level = "ASV", alr_ref = NULL,
 
 \item{MAP}{compute MAP estimate only (as single posterior sample)}
 
-\item{loo}{if non-zero, specifies the sample to leave out for CV; in this case predition error is returned}
+\item{holdout_proportion}{if non-zero, proportion of host's sample to use as a test set}
 }
 \description{
 Fit a Gaussian process to a single host series using basset

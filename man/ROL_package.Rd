@@ -3,7 +3,6 @@
 \docType{package}
 \name{ROL_package}
 \alias{ROL_package}
-\alias{ROL_package-package}
 \title{ROL: Code base for Rules of Life microbial dynamics analysis}
 \description{
 ROL: Code base for Rules of Life microbial dynamics analysis
