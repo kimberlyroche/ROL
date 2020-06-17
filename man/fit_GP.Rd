@@ -4,24 +4,18 @@
 \alias{fit_GP}
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
-fit_GP(
-  data,
-  host,
-  composite_kernel,
-  rho,
-  tax_level = "ASV",
-  alr_ref = NULL,
-  n_samples = 100,
-  MAP = FALSE,
-  holdout_proportion = 0
-)
+fit_GP(data, host, taxa_covariance, sample_covariance, rho,
+  tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE,
+  holdout_proportion = 0, return_model = FALSE)
 }
 \arguments{
 \item{data}{a phyloseq object}
 
 \item{host}{host short name (e.g. ACA)}
 
-\item{composite_kernel}{composite kernel function}
+\item{taxa_covariance}{list of prior covariance parameters over taxa}
+
+\item{sample_covariance}{kernel function}
 
 \item{rho}{bandwidth for SE kernel}
 
@@ -34,6 +28,8 @@ fit_GP(
 \item{MAP}{compute MAP estimate only (as single posterior sample)}
 
 \item{holdout_proportion}{if non-zero, proportion of host's sample to use as a test set}
+
+\item{return_model}{if TRUE, returns the fitted model instead of saving it}
 }
 \description{
 Fit a Gaussian process to a single host series using basset
@@ -45,7 +41,7 @@ Fitted model and metadata saved to designated model output directory.
 tax_level <- "ASV"
 data <- load_data(tax_level = tax_level)
 params <- formalize_parameters(data)
-rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
-composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), rho = rho)
-fit_GP(data, host = "GAB", composite_kernel = composite_kernel, rho = rho, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
+sample_covariance <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), min_correlation = 0.1, days_to_baseline = 90)
+taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
+fit_GP(data, host = "GAB", taxa_covariance = taxa_covariance, sample_covariance = sample_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
 }

@@ -68,16 +68,16 @@ get_fitted_model_list <- function(tax_level="ASV", MAP=FALSE) {
 #' Set up a basic ALR prior
 #' 
 #' @param D number of features including reference (where the ALR will represent D-1)
-#' @param log_var_scale scale of the log variance
+#' @param total_variance scale of the log variance
 #' @return list containing inverse Wishart parameters degrees of freedom and scale matrix
 #' @export
 #' @examples
-#' params <- default_ALR_prior(D=100, log_var_scale=1)
+#' params <- get_Xi(D=100, log_var_scale=1)
 #' Sigma <- matrixsampling::rinvwishart(1, params$upsilon, params$Xi)[,,1]
-default_ALR_prior <- function(D, log_var_scale=1) {
+get_Xi <- function(D, total_variance=1) {
   upsilon <- D-1+10 # specify low certainty/concentration
   GG <- cbind(diag(D-1), -1) # log contrast for ALR with last taxon as reference
-  Xi <- GG%*%(diag(D)*log_var_scale)%*%t(GG) # take diag as covariance over log abundances
+  Xi <- GG%*%(diag(D)*total_variance)%*%t(GG) # take diag as covariance over log abundances
   Xi <- Xi*(upsilon-D-1)
   return(list(upsilon=upsilon, Xi=Xi))
 }
@@ -193,13 +193,11 @@ calc_se_decay <- function(min_correlation = 0.1, days_to_baseline = 90) {
 #' @param rho bandwidth for SE kernel
 #' @details Composite kernel is built from (1) squared exponential kernel (base autocorrelation component),
 #' (2) seasonal kernel (periodic), and (3) diet and climate component (another squared exponential)
-#' @return kernel function
+#' @return list containing kernel function and bandwidth parameter
 #' @import stray
 #' @export
-#' @examples
-#' rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
-#' composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), rho = rho)
-get_Gamma <- function(kernel_scale, proportions, rho) {
+get_Gamma <- function(kernel_scale, proportions, min_correlation = 0.1, days_to_baseline = 90) {
+  rho <- calc_se_decay(min_correlation = min_correlation, days_to_baseline = days_to_baseline)
   # back-calculate the squared exponential bandwidth parameter by finding a bandwidth that gives
   # a desired minimum correlation at the number of days specified by SE_days_to_baseline
   Gamma <- function(X) {
@@ -212,20 +210,50 @@ get_Gamma <- function(kernel_scale, proportions, rho) {
       PER(X[1,,drop=F], sigma = sqrt(part.2), rho = 1, period = 365, jitter = jitter) +
       SE(X[2:6,,drop=F], sigma = sqrt(part.3), rho = 1, jitter = jitter) # a few diet PCs
   }
-  return(Gamma)
+  return(list(rho = rho, Gamma = Gamma))
+}
+
+#' Utility function to calculate RMSE
+#'
+#' @param y1 count vector
+#' @param y2 count vector
+#' @param pc optional pseudocount parameter
+#' @return root mean squared error of log counts
+#' @export
+log_rmse <- function(y1, y2, pc = 0.5) {
+  sqrt(sum(sapply(1:length(y1), function(yy) {
+    (log(y1[yy] + pc) - log(y2[yy] + pc))^2
+  }))/length(y1))
+}
+
+#' Utility function to calculate fold change (as error)
+#'
+#' @param y1 count vector
+#' @param y2 count vector
+#' @param pc optional pseudocount parameter
+#' @return average fold difference between vectors
+#' @export
+fold_error <- function(y1, y2, pc = 0.5) {
+  mean(sapply(1:length(y1), function(yy) {
+    a <- max(y1[yy] + pc, y2[yy] + pc)
+    b <- min(y1[yy] + pc, y2[yy] + pc)
+    a/b
+  })) - 1
 }
 
 #' Fit a Gaussian process to a single host series using basset
 #' 
 #' @param data a phyloseq object
 #' @param host host short name (e.g. ACA)
-#' @param composite_kernel composite kernel function
+#' @param taxa_covariance list of prior covariance parameters over taxa
+#' @param sample_covariance kernel function
 #' @param rho bandwidth for SE kernel
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param alr_ref index of reference ALR coordinate
 #' @param n_samples number of posterior samples to draw
 #' @param MAP compute MAP estimate only (as single posterior sample)
 #' @param holdout_proportion if non-zero, proportion of host's sample to use as a test set
+#' @param return_model if TRUE, returns the fitted model instead of saving it
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
 #' @import phyloseq
@@ -235,10 +263,10 @@ get_Gamma <- function(kernel_scale, proportions, rho) {
 #' tax_level <- "ASV"
 #' data <- load_data(tax_level = tax_level)
 #' params <- formalize_parameters(data)
-#' rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
-#' composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), rho = rho)
-#' fit_GP(data, host = "GAB", composite_kernel = composite_kernel, rho = rho, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
-fit_GP <- function(data, host, composite_kernel, rho, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE, holdout_proportion = 0) {
+#' sample_covariance <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), min_correlation = 0.1, days_to_baseline = 90)
+#' taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
+#' fit_GP(data, host = "GAB", taxa_covariance = taxa_covariance, sample_covariance = sample_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
+fit_GP <- function(data, host, taxa_covariance, sample_covariance, rho, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE, holdout_proportion = 0, return_model = FALSE) {
   if(MAP) {
     cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
     if(holdout_proportion > 0) {
@@ -291,9 +319,6 @@ fit_GP <- function(data, host, composite_kernel, rho, tax_level = "ASV", alr_ref
     Y <- Y[,setdiff(1:N, holdout_idx)]
   }
 
-  # use a default ALR prior
-  prior_params <- default_ALR_prior(D)
-  
   # define the prior over baselines
   alr_ys <- driver::alr((t(Y) + 0.5))
   alr_means <- colMeans(alr_ys)
@@ -302,7 +327,7 @@ fit_GP <- function(data, host, composite_kernel, rho, tax_level = "ASV", alr_ref
   if(MAP) {
     n_samples <- 0
   }
-  fit <- stray::basset(Y, X, prior_params$upsilon, Theta, composite_kernel, prior_params$Xi,
+  fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, sample_covariance$Gamma, taxa_covariance$Xi,
                        n_samples = n_samples, ret_mean = MAP, 
                        b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                        max_iter = 10000L, optim_method = "adam")
@@ -314,23 +339,35 @@ fit_GP <- function(data, host, composite_kernel, rho, tax_level = "ASV", alr_ref
   }
 
   if(holdout_proportion > 0) {
-    predicted <- predict(fit, X_test, response = "Y", iter = fit$iter)
-    sse <- sapply(1:n_samples, function(i) {
-      sum((predicted[,1,i] - Y_test[,1])^2)
-    })
-    log_sse <- sapply(1:n_samples, function(i) {
-      sum((log(predicted[,1,i] + 0.5) - log(Y_test[,1] + 0.5))^2)
-    })
-    rmse <- sqrt(mean(sse))
-    log_rmse <- sqrt(mean(log_sse))
-    return(list(rmse = rmse, log_rmse = log_rmse))
+    predicted <- predict(fit, X_test, response = "Y", iter = fit$iter) # taxa x holdout samples x posterior samples
+    err1 <- mean(sapply(1:dim(predicted)[2], function(i) {
+                   # for each held out sample
+                   ref <- Y_test[,i]
+                   sapply(1:dim(predicted)[3], function(j) {
+                     # for each posterior sample
+                     fold_error(ref, predicted[,i,j])
+                   })
+                 }))
+    err2 <- mean(sapply(1:dim(predicted)[2], function(i) {
+                   # for each held out sample
+                   ref <- Y_test[,i]
+                   sapply(1:dim(predicted)[3], function(j) {
+                     # for each posterior sample
+                     log_rmse(ref, predicted[,i,j])
+                   })
+                 }))
+    return(list(fold_error = err1, log_rmse = err2))
   }
   
   # pack up results
   fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, X = X, fit = fit)
   
   # a hack: for later prediction, these will need to be available in the workspace for Gamma
-  fit_obj$kernelparams$rho <- rho
+  fit_obj$kernelparams$rho <- sample_covariance$rho
+
+  if(return_model) {
+    return(fit_obj)
+  }
 
   # save results
   if(MAP) {
@@ -345,7 +382,8 @@ fit_GP <- function(data, host, composite_kernel, rho, tax_level = "ASV", alr_ref
 #' 
 #' @param data a phyloseq object
 #' @param host host short name (e.g. ACA)
-#' @param composite_kernel composite kernel function
+#' @param sample_covariance composite kernel function
+#' @param rho scalar bandwidth parameter
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param holdout_proportion proportion of host's sample to use as a test set
 #' @param iterations number of CV iterations to perform; this should be <= n_samples for this host
@@ -356,13 +394,13 @@ fit_GP <- function(data, host, composite_kernel, rho, tax_level = "ASV", alr_ref
 #' @examples
 #' tax_level <- "ASV"
 #' data <- load_data(tax_level = tax_level)
-#' rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
-#' composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
-#' perform_cv(data, host = "GAB", composite_kernel = composite_kernel, tax_level = tax_level)
-perform_cv <- function(data, host, composite_kernel, tax_level = "ASV", holdout_proportion = 0.2) {
+#' sample_covariance <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), min_correlation = 0.1, days_to_baseline = 90)
+#' taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
+#' perform_cv(data, host = "GAB", taxa_covariance = taxa_covariance, sample_covariance = sample_covariance, tax_level = tax_level)
+perform_cv <- function(data, host, taxa_covariance, sample_covariance, tax_level = "ASV", holdout_proportion = 0.2) {
   params <- formalize_parameters(data)
-  return(fit_GP(data, host, composite_kernel, tax_level, alr_ref = params$alr_ref, n_samples = 100,
-                             MAP = FALSE, holdout_proportion = holdout_proportion)$log_rmse)
+  return(fit_GP(data, host, taxa_covariance, sample_covariance, rho, tax_level, alr_ref = params$alr_ref, n_samples = 100,
+                             MAP = FALSE, holdout_proportion = holdout_proportion))
 }
 
 

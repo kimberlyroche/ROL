@@ -4,24 +4,21 @@
 \alias{perform_cv}
 \title{Perform k-fold cross-validation for a given host and kernel configuration choice}
 \usage{
-perform_cv(
-  data,
-  host,
-  composite_kernel,
-  tax_level = "ASV",
-  holdout_proportion = 0.2
-)
+perform_cv(data, host, taxa_covariance, sample_covariance,
+  tax_level = "ASV", holdout_proportion = 0.2)
 }
 \arguments{
 \item{data}{a phyloseq object}
 
 \item{host}{host short name (e.g. ACA)}
 
-\item{composite_kernel}{composite kernel function}
+\item{sample_covariance}{composite kernel function}
 
 \item{tax_level}{taxonomic level at which to agglomerate data}
 
 \item{holdout_proportion}{proportion of host's sample to use as a test set}
+
+\item{rho}{scalar bandwidth parameter}
 
 \item{iterations}{number of CV iterations to perform; this should be <= n_samples for this host}
 }
@@ -34,7 +31,7 @@ average error (currently RMSE of log counts)
 \examples{
 tax_level <- "ASV"
 data <- load_data(tax_level = tax_level)
-rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 90)
-composite_kernel <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), days_to_baseline = 90)
-perform_cv(data, host = "GAB", composite_kernel = composite_kernel, tax_level = tax_level)
+sample_covariance <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), min_correlation = 0.1, days_to_baseline = 90)
+taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
+perform_cv(data, host = "GAB", taxa_covariance = taxa_covariance, sample_covariance = sample_covariance, tax_level = tax_level)
 }

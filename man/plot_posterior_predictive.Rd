@@ -5,7 +5,8 @@
 \title{Plot posterior predictive intervals of Eta (denoised ALR abundances) over observed time series for designated host}
 \usage{
 plot_posterior_predictive(host, tax_level = "ASV",
-  predict_coords = NULL, logratio = "clr", show_plot = FALSE)
+  predict_coords = NULL, fit_obj = NULL, logratio = "clr",
+  show_plot = FALSE, plot_label = NULL)
 }
 \arguments{
 \item{host}{host short name (e.g. ACA)}
@@ -14,9 +15,13 @@ plot_posterior_predictive(host, tax_level = "ASV",
 
 \item{predict_coords}{ALR coordinates to visualize prediction intervals over}
 
+\item{fit_obj}{optional fitted model to provide; if NULL the function checks the output directory}
+
 \item{logratio}{logratio representation to use (e.g. "alr", "ilr", "clr")}
 
 \item{show_plot}{show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)}
+
+\item{plot_label}{optional label to append to the saved filename}
 }
 \description{
 Plot posterior predictive intervals of Eta (denoised ALR abundances) over observed time series for designated host

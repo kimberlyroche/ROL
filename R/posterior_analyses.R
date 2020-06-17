@@ -597,7 +597,9 @@ plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param predict_coords ALR coordinates to visualize prediction intervals over
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
+#' @param fit_obj optional fitted model to provide; if NULL the function checks the output directory
 #' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
+#' @param plot_label optional label to append to the saved filename
 #' @details Output are png files of predicted series intervals.
 #' @return NULL
 #' @import driver
@@ -607,12 +609,14 @@ plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
 #' @export
 #' @examples
 #' plot_posterior_predictive(host="ZIB", tax_level="ASV", predict_coords=c(1,2,3))
-plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL, logratio="clr", show_plot=FALSE) {
-  fit_filename <- file.path("output","model_fits",tax_level,paste0(host,"_bassetfit.rds"))
-  if(!file.exists(fit_filename)) {
-    stop(paste0("Model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
+plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL, fit_obj=NULL, logratio="clr", show_plot=FALSE, plot_label=NULL) {
+  if(is.null(fit_obj)) {
+    fit_filename <- file.path("output","model_fits",tax_level,paste0(host,"_bassetfit.rds"))
+    if(!file.exists(fit_filename)) {
+      stop(paste0("Model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
+    }
+    fit_obj <- read_file(fit_filename)
   }
-  fit_obj <- read_file(fit_filename)
   if(is.null(predict_coords)) {
     # choose random coordinates to predict over
     predict_coords <- sample(1:(fit_obj$fit$D-1))[1:2]
@@ -679,7 +683,11 @@ plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL
       show(p)
     }
     save_dir <- check_output_dir(c("output","plots",tax_level))
-    ggsave(file.path(save_dir,paste0(host,"_posterior_predictive_",coord,".png")),
+    save_name <- paste0(host,"_posterior_predictive_",coord,".png")
+    if(!is.null(plot_label)) {
+      save_name <- paste0(host,"_posterior_predictive_",coord,"_",plot_label,".png")
+    }
+    ggsave(file.path(save_dir,save_name),
            plot=p, scale=1.5, width=10, height=2, units="in", dpi=150)
   }
 }
