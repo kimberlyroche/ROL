@@ -266,7 +266,7 @@ fold_error <- function(y1, y2, pc = 0.5) {
 #' sample_covariance <- get_Gamma(kernel_scale = 2, proportions = c(1, 0, 0), min_correlation = 0.1, days_to_baseline = 90)
 #' taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
 #' fit_GP(data, host = "GAB", taxa_covariance = taxa_covariance, sample_covariance = sample_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
-fit_GP <- function(data, host, taxa_covariance, sample_covariance, rho, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE, holdout_proportion = 0, return_model = FALSE) {
+fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE, holdout_proportion = 0, return_model = FALSE) {
   if(MAP) {
     cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
     if(holdout_proportion > 0) {
