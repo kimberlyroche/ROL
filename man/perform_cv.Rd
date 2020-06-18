@@ -4,8 +4,14 @@
 \alias{perform_cv}
 \title{Perform k-fold cross-validation for a given host and kernel configuration choice}
 \usage{
-perform_cv(data, host, taxa_covariance, sample_covariance,
-  tax_level = "ASV", holdout_proportion = 0.2)
+perform_cv(
+  data,
+  host,
+  taxa_covariance,
+  sample_covariance,
+  tax_level = "ASV",
+  holdout_proportion = 0.2
+)
 }
 \arguments{
 \item{data}{a phyloseq object}

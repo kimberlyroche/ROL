@@ -167,8 +167,10 @@ build_design_matrix_predict <- function(X) {
   last_time_point <- max(X[1,])
   X_predict <- t(1:last_time_point)
   n_features <- nrow(X)-1 # these are the features to (linearly) interpolate
-  for(f in 1:n_features) {
-    X_predict <- rbind(X_predict, t(approx(x = X[1,], y = X[f+1,], xout = 1:last_time_point, method = "linear")$y))
+  if(n_features > 0) {
+    for(f in 1:n_features) {
+      X_predict <- rbind(X_predict, t(approx(x = X[1,], y = X[f+1,], xout = 1:last_time_point, method = "linear")$y))
+    }
   }
   return(X_predict)
 }
