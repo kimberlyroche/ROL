@@ -388,7 +388,7 @@ calc_universality_score.old <- function(x) {
 #' score <- calc_universality_score(interaction_matrix[,1])
 calc_universality_score <- function(x) {
   x.sign <- sapply(x, sign)
-  neg.idx <- which (x.sign < 0)
+  neg.idx <- which(x.sign < 0)
   pos.idx <- which(x.sign > 0)
   neg.abs.median <- NA
   pos.abs.median <- NA
@@ -399,7 +399,7 @@ calc_universality_score <- function(x) {
     pos.abs.median <- abs(median(x[pos.idx]))
   }
   score <- 0
-  # R doesn't do short circuit evaluation?
+  # R doesn't do short circuit evaluation? yes, it does: update with &&
   if(!is.na(neg.abs.median) & !is.na(pos.abs.median)) {
     if(pos.abs.median > neg.abs.median) {
       # use this as majority direction
