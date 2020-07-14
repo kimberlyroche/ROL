@@ -167,6 +167,17 @@ calc_posterior_distance_row <- function(tax_level="ASV", sample_idx=1) {
   saveRDS(list(host_labels=model_list$hosts, distance_mat=distance_mat), file=dist_filename)
 }
 
+#' Calculate pairwise distances (slowly) by calling Riemann_dist_pair
+#' This is just a convenience function
+#' 
+#' @param A covariance/correlation matrix 1
+#' @param B covariance/correlation matrix 2
+#' @return (scalar) Riemannian distance between matrices
+#' @export
+get_Rdist_pair <- function(A, B) {
+  Riemann_dist_pair(A, B)
+}
+
 #' Embeds posterior samples using MDS and a pre-calculated distance matrix
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data

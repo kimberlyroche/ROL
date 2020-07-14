@@ -41,5 +41,3 @@ ggsave("runlabel_boxplot.png", p, units = "in", dpi = 150, height = 6, width = 8
 #             xlab("Host") +
 #             ylab(paste0("RMSE of log counts (model \"",rl,"\")"))
 # ggsave(paste0("host_boxplot_",rl,".png"), p, units = "in", dpi = 150, height = 8, width = 12)
-
-
