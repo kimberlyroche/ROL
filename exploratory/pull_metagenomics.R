@@ -5,6 +5,7 @@
 # total number of samples don't exceed some ceiling.
 
 library(ROL)
+library(phyloseq)
 
 # --------------------------------------------------------------------------------------------------------------
 #   Find hosts with good "fitness" annotations; these are necessarily females!
@@ -68,10 +69,26 @@ for(sample_ceiling in sample_ceilings) {
 }
 
 # --------------------------------------------------------------------------------------------------------------
+#   Pull the samples associated with a select set of (chosen) individuals
+# --------------------------------------------------------------------------------------------------------------
+
+selected_hosts <- c("DUN", "EAG", "HON", "LAZ", "NOB", "ONY", "ORI", "VIN", "VOT")
+
+selected_data <- subset_samples(data, sname %in% selected_hosts)
+selected_md <- sample_data(selected_data)
+
+pull_order <- order(selected_md$sname)
+sample_id_df <- data.frame(host_sname = selected_md$sname[pull_order],
+                           sample_ID = selected_md$sample_id[pull_order],
+                           collection_date = selected_md$collection_date[pull_order])
+head(sample_id_df)
+write.table(sample_id_df, file = "metagenomics_selected_samples.tsv", sep = "\t", row.names = F, quote = F)
+
+# --------------------------------------------------------------------------------------------------------------
 #   Greedily find distance maximizers
 # --------------------------------------------------------------------------------------------------------------
 
-distances <- readRDS(file.path("output", "Sigma_distance_ASV_MAP.rds"))
+# distances <- readRDS(file.path("output", "Sigma_distance_ASV_MAP.rds"))
  
 # # we'll use a greedy solution; the combinatorics here are awful
 # # alternatively, we could think about doing a constrained optimization (and I did) to optimize a vector
