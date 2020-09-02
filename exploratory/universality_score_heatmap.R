@@ -9,6 +9,7 @@ library(dplyr)
 library(LaplacesDemon)
 library(driver)
 library(matrixsampling)
+library(emdist)
 
 calc_xy <- function(vSigmas) {
   if(is.null(dim(vSigmas))) {
@@ -25,7 +26,6 @@ generate_counts <- function(num_taxa, num_samples, num_hosts, scenario, populati
   synthetic_counts <- array(NA, dim = c(num_taxa, num_samples, num_hosts))
   for(h in 1:num_hosts) {
     if(scenario == 1) {
-      cat("Simulating condition 1\n")
       # total randomness; no individual baseline
       props_h <- rdirichlet(n = num_samples, alpha = rep(0.1, num_taxa))
       counts_h <- t(apply(props_h, 1, function(x) {
@@ -33,7 +33,6 @@ generate_counts <- function(num_taxa, num_samples, num_hosts, scenario, populati
       })) # dimensions are samples x taxa
     }
     if(scenario == 2) {
-      cat("Simulating condition 2\n")
       # a host baseline gives correlation between samples
       baseline_h <- rdirichlet(n = 1, alpha = rep(1, num_taxa))
       counts_h <- matrix(NA, num_taxa, num_samples)
@@ -43,7 +42,6 @@ generate_counts <- function(num_taxa, num_samples, num_hosts, scenario, populati
       }
     }
     if(scenario == 3) {
-      cat("Simulating condition 3\n")
       # population and host baselines correlate samples now
       # baseline_h <- rdirichlet(n = 1, alpha = population_baseline_composition*200)
       counts_h <- matrix(NA, num_taxa, num_samples)
@@ -58,17 +56,16 @@ generate_counts <- function(num_taxa, num_samples, num_hosts, scenario, populati
   synthetic_counts
 }
 
-generate_counts_w_cov <- function(num_taxa, num_samples, num_hosts, scenario) {
+# host_contrib = 0.5 gives a 50% population-level, 50% host-level covariance structure to logratio taxa
+generate_counts_w_cov <- function(num_taxa, num_samples, num_hosts, host_contrib = 0.5) {
   synthetic_counts <- array(NA, dim = c(num_taxa, num_samples, num_hosts))
-  simulated_covariance <- rinvwishart(1, num_taxa + 10, diag(num_taxa)*10)[,,1]
+  simulated_covariance_pop <- rinvwishart(1, num_taxa + 10, diag(num_taxa)*10)[,,1]
   for(h in 1:num_hosts) {
-    if(scenario == 4) {
-      # host level correlation
-      simulated_covariance <- rinvwishart(1, num_taxa + 10, diag(num_taxa)*10)[,,1]
-    }
-    host_simulated_covariance <- rinvwishart(1, num_taxa + 50, simulated_covariance*50)[,,1]
+    # host level correlation
+    simulated_covariance_host <- rinvwishart(1, num_taxa + 10, diag(num_taxa)*10)[,,1]
+    simulated_covariance <- (1 - host_contrib)*simulated_covariance_pop + host_contrib*simulated_covariance_host
     counts_h <- matrix(NA, num_taxa, num_samples)
-    logratios <- rmatrixnormal(1, matrix(0, num_taxa, num_samples), host_simulated_covariance, diag(num_samples))[,,1]
+    logratios <- rmatrixnormal(1, matrix(0, num_taxa, num_samples), simulated_covariance, diag(num_samples))[,,1]
     for(n in 1:num_samples) {
       counts_h[,n] <- rmultinom(1, size = rpois(1, 10000), prob = clrInv(logratios[,n]))[,1]
     }
@@ -160,94 +157,113 @@ ggplot() +
 ##   Simulations
 ## ------------------------------------------------------------------------------------------------
 
+# Functions
+
+# Plot the 2D heatmap of universality scores and map pairwise interactions onto these as a point
+# cloud
+visualize_synthetic_data <- function(synthetic_point_data, show_rug = FALSE) {
+  # plot heatmap with points
+  p <- ggplot() +
+    geom_raster(data = data, aes(x = x, y = y, fill = z)) +
+    scale_fill_gradient(low = "white", high = "red") +
+    geom_point(data = synthetic_point_data, aes(x = x, y = y), color = "#444444") +
+    xlab("proportion shared direction") +
+    ylab("mean strength of associations") +
+    labs(fill = "weighted \nuniversality\nscore")
+  show(p)
+  
+  if(show_rug) {
+    # render the "rug" for this case to get another view of what's going on; takes ~30 sec. to run
+    d <- dist(synthetic_Sigmas)
+    clustering.hosts <- hclust(d)
+    d <- dist(t(synthetic_Sigmas))
+    clustering.interactions <- hclust(d)
+    interactions.reordered <- synthetic_Sigmas[clustering.hosts$order,]
+    interactions.reordered <- interactions.reordered[,clustering.interactions$order]
+    
+    plot_df <- gather_array(interactions.reordered, "correlation", "host", "interaction")
+    p <- ggplot(plot_df, aes(x = interaction, y = host, fill = correlation)) +
+      geom_tile() +
+      scale_fill_gradient2(low = "darkblue", high = "darkred")
+    show(p)
+  }
+}
+
+# Calculate the 2D "universality" mapping coordinates for all simulated interactions
+map_synthetic_data <- function(counts) {
+  D <- dim(counts)[1]
+  N_h <- dim(counts)[2]
+  H <- dim(counts)[3]
+  synthetic_Sigmas <- matrix(NA, H, (D^2/2) - D/2)
+  # now calculate correlation across pairs
+  # at D = 150, H = 50, N_h = 100 this takes about 1 min.
+  for(h in 1:H) {
+    clr_h <- clr(t(counts[,,h]) + 0.5)
+    corr_h <- c()
+    for(i in 1:(D_new - 1)) {
+      for(j in (i+1):D_new) {
+        temp <- cor(clr_h[,i], clr_h[,j])
+        corr_h <- c(corr_h, temp)
+      }
+    }
+    synthetic_Sigmas[h,] <- corr_h
+  }
+  synthetic_point_data <- data.frame(x = c(), y = c())
+  for(i in 1:ncol(synthetic_Sigmas)) {
+    # if(i %% 100 == 0) {
+    #   cat("Interaction:",i,"\n")
+    # }
+    temp <- calc_xy(synthetic_Sigmas[,i])
+    synthetic_point_data <- rbind(synthetic_point_data, data.frame(x = temp$x, y = temp$y))
+  }
+  synthetic_point_data
+}
+
+# Calculate Earth Mover's Distance between synthetic and observed interaction point clouds
+calculate_distance <- function(synthetic_df, observed_df) {
+  # bin the 2D map of universality
+  # we'll use Earth Mover's Distance to assess how similar two point cloud distributions are
+  binned_x <- unname(table(cut(synthetic_df$x, breaks = seq(0.5, 1, length.out = 20))))
+  binned_y <- unname(table(cut(synthetic_df$y, breaks = seq(0, 1, length.out = 20))))
+  synthetic_binned_data <- rbind(binned_x, binned_y)
+  
+  binned_x <- unname(table(cut(observed_df$x, breaks = seq(0.5, 1, length.out = 20))))
+  binned_y <- unname(table(cut(observed_df$y, breaks = seq(0, 1, length.out = 20))))
+  observed_binned_data <- rbind(binned_x, binned_y)
+  
+  emd2d(synthetic_binned_data, observed_binned_data)
+}
+
+# visualize the real data
+visualize_synthetic_data(point_data)
+ggsave("real_data.png", units = "in", dpi = 150, height = 7, width = 9)
+
 D <- dim(Sigmas[[1]])[1]
 D <- 150
 H <- length(Sigmas)
 H <- 50
 N_h <- 100
 
-scenario <- 5
+# scenario <- 1
 # 1: all compositions are random within and between hosts
 #    taxa are independent
 # 2: hosts have a baseline composition
 #    taxa are independent
 # 3: the population has a baseline composition and hosts have baseline compositions correlated with this
 #    taxa are independent
-# 4: simulate host-level correlated taxa
-# 5: simulate population-level correlated taxa
+# baseline_p <- rdirichlet(n = 1, alpha = rep(1, D))
+# counts <- generate_counts(D, N_h, H, scenario = scenario, population_baseline_composition = baseline_p)
 
-if(scenario >= 4) {
-  counts <- generate_counts_w_cov(D, N_h, H, scenario)
-} else {
-  baseline_p <- rdirichlet(n = 1, alpha = rep(1, D))
-  counts <- generate_counts(D, N_h, H, scenario = scenario, population_baseline_composition = baseline_p)
+# 4: some combination of population- and host-level correlated taxa
+sweep_host_contrib <- seq(from = 0, to = 1, by = 0.1)
+for(host_contrib in sweep_host_contrib) {
+  counts <- generate_counts_w_cov(D, N_h, H, host_contrib = host_contrib)
+  synthetic_point_data <- map_synthetic_data(counts)
+  # visualize_synthetic_data(synthetic_point_data)
+  dist_value <- calculate_distance(synthetic_point_data, point_data)
+  cat("Distance for combo:",round(1 - host_contrib, 1),"x",round(host_contrib, 1),":",round(dist_value, 2),"\n")
+  visualize_synthetic_data(synthetic_point_data)
+  ggsave(paste0("simulated_data_",host_contrib,".png"), units = "in", dpi = 150, height = 7, width = 9)
 }
-
-# filter out taxa that appear don't appear above some minimal frequency at a minimal count
-# across all hosts (this is roughly what we're doing in the ABRP data set)
-
-# counts is D x N_h x H
-# include_taxa <- logical(D)
-# for(i in 1:D) {
-#   temp <- counts[i,,]
-#   host_min_prevalence <- min(apply(temp, 2, function(x) {
-#     sum(x > 0)/N_h
-#   }))
-#   include_taxa[i] <- host_min_prevalence >= 0.33
-# }
-# cat("Filtering out",(D - sum(include_taxa)),"taxa!\n")
-# counts <- counts[include_taxa,,]
-
-D_new <- dim(counts)[1]
-synthetic_Sigmas <- matrix(NA, H, (D_new^2/2) - D_new/2)
-
-# now calculate correlation across pairs
-# at D = 150, H = 50, N_h = 100 this takes about 1 min.
-for(h in 1:H) {
-  clr_h <- clr(t(counts[,,h]) + 0.5)
-  corr_h <- c()
-  for(i in 1:(D_new - 1)) {
-    for(j in (i+1):D_new) {
-      temp <- cor(clr_h[,i], clr_h[,j])
-      corr_h <- c(corr_h, temp)
-    }
-  }
-  synthetic_Sigmas[h,] <- corr_h
-}
-
-synthetic_point_data <- data.frame(x = c(), y = c())
-for(i in 1:ncol(synthetic_Sigmas)) {
-  if(i %% 100 == 0) {
-    cat("Interaction:",i,"\n")
-  }
-  temp <- calc_xy(synthetic_Sigmas[,i])
-  synthetic_point_data <- rbind(synthetic_point_data, data.frame(x = temp$x, y = temp$y))
-}
-
-# plot heatmap with points
-ggplot() +
-  geom_raster(data = data, aes(x = x, y = y, fill = z)) +
-  scale_fill_gradient(low = "white", high = "red") +
-  geom_point(data = synthetic_point_data, aes(x = x, y = y), color = "#444444") +
-  xlab("proportion shared direction") +
-  ylab("mean strength of associations") +
-  labs(fill = "weighted \nuniversality\nscore")
-
-# render the "rug" for this case to get another view of what's going on; takes ~30 sec. to run
-d <- dist(synthetic_Sigmas)
-clustering.hosts <- hclust(d)
-d <- dist(t(synthetic_Sigmas))
-clustering.interactions <- hclust(d)
-interactions.reordered <- synthetic_Sigmas[clustering.hosts$order,]
-interactions.reordered <- interactions.reordered[,clustering.interactions$order]
-
-plot_df <- gather_array(interactions.reordered, "correlation", "host", "interaction")
-p <- ggplot(plot_df, aes(x = interaction, y = host, fill = correlation)) +
-  geom_tile() +
-  scale_fill_gradient2(low = "darkblue", high = "darkred")
-show(p)
-
-
-
 
 
