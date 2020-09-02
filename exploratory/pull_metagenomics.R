@@ -5,6 +5,7 @@
 # total number of samples don't exceed some ceiling.
 
 library(ROL)
+library(phyloseq)
 
 # --------------------------------------------------------------------------------------------------------------
 #   Find hosts with good "fitness" annotations; these are necessarily females!
@@ -68,10 +69,42 @@ for(sample_ceiling in sample_ceilings) {
 }
 
 # --------------------------------------------------------------------------------------------------------------
+#   Visualize the selected individuals; obvs. hard-coded
+# --------------------------------------------------------------------------------------------------------------
+
+# data <- load_data(tax_level = "ASV")
+# metadata <- sample_data(data)
+# all_hosts <- unique(metadata$sname)
+# for(i in 1:3) {
+#   if(i == 1) {
+#     selected_hosts <- c("DUN", "LAZ", "OFR", "ONY", "ORI", "VIN") # 500
+#   } else if(i == 2) {
+#     selected_hosts <- c("DUN", "EAG", "HON", "LAZ", "NOB", "ONY", "ORI", "VIN", "VOT") # 750
+#   } else {
+#     selected_hosts <- c("DUN", "EAG", "FAX", "HON", "LAZ", "OFR", "ONY", "ORI", "VEL", "VEX", "VIN", "VOT") # 1000
+#   }
+#   plot_df <- data.frame(sample_date = c(), host = c(), selected = c())
+#   group_list <- c()
+#   for(host in all_hosts) {
+#     # plot_timecourse(data, host = "DUN", gapped = TRUE, legend = FALSE, selected_samples = FALSE, show_plot = FALSE)
+#     host_dates <- metadata$collection_date[metadata$sname == host]
+#     group_list <- c(group_list, metadata$grp[metadata$sname == host])
+#     new_df <- data.frame(sample_date = host_dates, host = host, selected = (host %in% selected_hosts))
+#     plot_df <- rbind(plot_df, new_df)
+#   }
+#   plot_df$sample_date <- as.Date(plot_df$sample_date)
+#   p <- ggplot(plot_df, aes(x = sample_date, y = host, color = selected)) +
+#   geom_point()
+#   ggsave(paste0("set_",i,".png"), p, units = "in", dpi = 150, height = 6, width = 6)
+#   # get unique groups represented by these hosts
+#   print(unique(group_list))
+# }
+
+# --------------------------------------------------------------------------------------------------------------
 #   Greedily find distance maximizers
 # --------------------------------------------------------------------------------------------------------------
 
-distances <- readRDS(file.path("output", "Sigma_distance_ASV_MAP.rds"))
+# distances <- readRDS(file.path("output", "Sigma_distance_ASV_MAP.rds"))
  
 # # we'll use a greedy solution; the combinatorics here are awful
 # # alternatively, we could think about doing a constrained optimization (and I did) to optimize a vector
