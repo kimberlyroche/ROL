@@ -75,8 +75,6 @@ for(host in names(Sigmas)) {
 ##     Parse unfiltered Johnson et al. (2019) data; MAP estimates only
 ## --------------------------------------------------------------------------------------------------------
 
-cat("Loading Johnson et al. (2019)...\n")
-
 data_file <- file.path("input","fit_johnson.rds")
 if(file.exists(data_file)) {
   vectorized_Sigmas_johnson2019 <- readRDS(data_file)
@@ -210,8 +208,6 @@ if(file.exists(data_file)) {
 ##     Parse unfiltered Dethlefsen & Relman (2011) data; MAP estimates only
 ## --------------------------------------------------------------------------------------------------------
 
-cat("Loading Dethlefsen & Relman (2011)...\n")
-
 data_file <- file.path("input","fit_dethlefsen.rds")
 if(file.exists(data_file)) {
   vectorized_Sigmas_dethlefsenrelman2011 <- readRDS(data_file)
@@ -341,8 +337,6 @@ if(file.exists(data_file)) {
 ## --------------------------------------------------------------------------------------------------------
 ##     Parse unfiltered Caporaso (2011) data
 ## --------------------------------------------------------------------------------------------------------
-
-cat("Loading Caporaso (2011)...\n")
 
 data_file <- file.path("input","fit_caporaso.rds")
 if(file.exists(data_file)) {
@@ -538,34 +532,80 @@ if(file.exists(data_file)) {
 ##     Parse David (2014) data
 ## --------------------------------------------------------------------------------------------------------
 
-cat("Loading David et al. (2014)...\n")
-
 data_file <- file.path("input","fit_david.rds")
 if(file.exists(data_file)) {
   vectorized_Sigmas_david2014 <- readRDS(data_file)
 } else {
   counts <- read.table("input/david2014/otu.table.ggref", header = TRUE, stringsAsFactors = FALSE, sep = "\t")
-  counts <- counts[,300:(ncol(counts)-1)]
+  metadata <- read.table("input/david2014/13059_2013_3286_MOESM18_ESM.csv", sep = ",", header = TRUE)
   
+  sample_labels <- metadata$X
+  subj_labels <- metadata$AGE # subject A is 26, subject B is 36
+  day_labels <- metadata$COLLECTION_DAY
+  subj_labels[subj_labels == 26] <- "A"
+  subj_labels[subj_labels == 36] <- "B"
   # strip character from the count column names
-  colnames(counts) <- sapply(colnames(counts), function(x) {
-    str_replace(x, "Stool", "")
+  sample_labels <- sapply(sample_labels, function(x) {
+    str_replace(x, "\\.\\d+", "")
   })
+  sample_labels <- unname(sample_labels)
+
+  # remove saliva samples
+  keep_idx <- which(!sapply(sample_labels, function(x) {
+    str_detect(x, "Saliva")
+  }))
+  subj_labels <- subj_labels[keep_idx]
+  sample_labels <- sample_labels[keep_idx]
+  day_labels <- day_labels[keep_idx]
   
-  # reorder the count columns
-  counts <- counts[,order(as.numeric(colnames(counts)))]
+  # include columns in counts that are in sample_labels
+  counts <- counts[,colnames(counts) %in% sample_labels]
+  keep_idx <- sample_labels %in% colnames(counts)
+  sample_labels <- sample_labels[keep_idx]
+  subj_labels <- subj_labels[keep_idx]
+  day_labels <- day_labels[keep_idx]
+
+  subj_A_idx <- c()
+  subj_A_days <- c()
+  subj_B_idx <- c()
+  subj_B_days <- c()
+  for(i in 1:length(colnames(counts))) {
+    idx <- which(sample_labels == colnames(counts)[i])
+    if(subj_labels[idx] == "A") {
+      subj_A_idx <- c(subj_A_idx, i)
+      subj_A_days <- c(subj_A_days, day_labels[idx])
+    } else {
+      subj_B_idx <- c(subj_B_idx, i)
+      subj_B_days <- c(subj_B_days, day_labels[idx])
+    }
+  }
   
-  # I'm guessing about these indices; need to check
-  subjA_idx <- 1:300
-  subjB_idx <- 301:ncol(counts)
+  subj_A_counts <- counts[,subj_A_idx]
+  subj_B_counts <- counts[,subj_B_idx]
+
+  reorder <- order(subj_A_days)
+  subj_A_days <- subj_A_days[reorder]
+  subj_A_counts <- subj_A_counts[,reorder]
+
+  reorder <- order(subj_B_days)
+  subj_B_days <- subj_B_days[reorder]
+  subj_B_counts <- subj_B_counts[,reorder]
   
+  counts <- cbind(subj_A_counts, subj_B_counts)
   # filter low abundance taxa
   # counts <- counts[rowMeans(counts) > 100,]
   retain_idx <- filter_taxa(counts)
   counts <- counts[retain_idx,]
   
-  host_columns <- list(subjA_idx, subjB_idx) # individuals 1, 2
-  
+  host_columns <- list(1:length(subj_A_days), (length(subj_A_days) + 1):ncol(counts)) # individuals 1, 2
+  host_dates <- list(subj_A_days, subj_B_days)
+
+  # for testing
+  #host_columns[[1]] <- host_columns[[1]][1:50]
+  #host_columns[[2]] <- host_columns[[2]][1:50]
+  #host_dates[[1]] <- host_dates[[1]][1:50]
+  #host_dates[[2]] <- host_dates[[2]][1:50]
+    
   if(use_MAP) {
     depth <- 1
   } else {
@@ -579,7 +619,7 @@ if(file.exists(data_file)) {
   for(subject in 1:length(host_columns)) {
     cat("Evaluating subject:",subject,"\n")
     subject_samples <- host_columns[[subject]]
-    subject_dates <- host_columns[[subject]]
+    subject_dates <- host_dates[[subject]] + 1
     if(length(subject_samples) > 0) {
       subject_counts <- counts[,subject_samples] # omitting taxonomy
       # later: we probably want to this about removing taxa that are very rare within any individual
@@ -683,23 +723,23 @@ calc_map_xy <- function(vectorized_Sigmas) {
 
 if(use_MAP) {
   plot_df <- data.frame(x = c(), y = c(), group = c())
+  point <- calc_map_xy(vectorized_Sigmas_johnson2019[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Johnson et al. (2019)"))
+  point <- calc_map_xy(vectorized_Sigmas_dethlefsenrelman2011[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Dethlefsen & Relman (2011)"))
+  point <- calc_map_xy(vectorized_Sigmas_caporaso2011[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011)"))
+  point <- calc_map_xy(vectorized_Sigmas_david2014[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "David et al. (2014)"))
+  # for(m in 1:n_subsets) {
+  #   point <- calc_map_xy(vectorized_Sigmas_caporaso2011_subsetted[,,1,m])
+  #   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011), subsetted"))
+  # }
   for(group in unlist(unique(labels))) {
     group_Sigmas <- vectorized_Sigmas[unname(which(labels == group)),]
     point <- calc_map_xy(group_Sigmas)
     plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = paste0("ABRP group ",group)))
   }
-  point <- calc_map_xy(vectorized_Sigmas_caporaso2011[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011)"))
-  point <- calc_map_xy(vectorized_Sigmas_david2014[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "David et al. (2014)"))
-  point <- calc_map_xy(vectorized_Sigmas_dethlefsenrelman2011[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Dethlefsen & Relman (2011)"))
-  point <- calc_map_xy(vectorized_Sigmas_johnson2019[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Johnson et al. (2019)"))
-  # for(m in 1:n_subsets) {
-  #   point <- calc_map_xy(vectorized_Sigmas_caporaso2011_subsetted[,,1,m])
-  #   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011), subsetted"))
-  # }
 } else {
   plot_df <- data.frame(x = c(), y = c(), group = c())
   # Johnson et al. (2019)
@@ -797,29 +837,4 @@ ggsave("map_human_datasets.png", p_combo, units = "in", dpi = 100, height = 8, w
 #   xlab("avg. agreement between hosts") +
 #   ylab("avg. strength of associations (within hosts)")
 # print(p_quantiles)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
