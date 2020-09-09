@@ -5,6 +5,7 @@
 library(kernlab)
 library(phyloseq)
 library(ggplot2)
+library(gridExtra)
 
 # ----------------------------------------------------------------------------------------------
 #   PARSE DATA
@@ -62,6 +63,8 @@ detrend <- function(subset_data, which_method = "GP", visualize = FALSE) {
   metadata <- sample_data(subset_data)
   x <- metadata$collection_date
   y <- metadata$PC1
+  PC1_baseline <- mean(y)
+  y <- scale(y, center = TRUE, scale = FALSE)
   baseline_date <- min(x)
   x <- sapply(x, function(z) difftime(z, baseline_date)) + 1
   duplicates <- as.numeric(names(which(table(x) > 1)))
@@ -79,7 +82,7 @@ detrend <- function(subset_data, which_method = "GP", visualize = FALSE) {
     # fit <- gausspr(x, y, scaled = TRUE, var = 0.002)
     # fit <- gausspr(x, y, scaled = TRUE, kpar = list(sigma = 10), var = 0.01)
     mean_prediction <- predict(fit, x)
-    residual <- y - mean_prediction
+    residual <- y - mean_prediction + PC1_baseline
   } else {
     # AR(1)
     # this seems to work OK but there are occasional convergence issues;
@@ -99,7 +102,7 @@ detrend <- function(subset_data, which_method = "GP", visualize = FALSE) {
       return(list(residuals = NULL, lag_acf = NULL))
     }
     mean_prediction <- y - fit$residuals
-    residual <- fit$residuals
+    residual <- fit$residuals + PC1 + baseline
   }
   
   if(visualize) {
@@ -184,19 +187,28 @@ ggplot(plot_df, aes(x = x)) +
 
 # (2) Show all values associated with the original and modified PC1; there's still an obvious
 #     seasonal signal, at least at *scale*
+selected_host <- "Baboon_4"
 plot_df <- data.frame(x = full_metadata$collection_date,
                       y = full_metadata$PC1,
                       label = "ORIGINAL DATA",
+                      label2 = full_metadata$host == selected_host,
                       host_type = as.factor(excluded_from_fit))
 plot_df <- rbind(plot_df, data.frame(x = full_metadata$collection_date,
                                      y = full_metadata$modified_PC1,
                                      label = "MODIFIED DATA",
+                                     label2 = full_metadata$host == selected_host,
                                      host_type = as.factor(excluded_from_fit)))
-ggplot(plot_df, aes(x = x, y = y)) +
-  geom_point() +
-  facet_grid(rows = vars(label)) +
+p1 <- ggplot() +
+  geom_point(data = plot_df[plot_df$label == "ORIGINAL DATA" & plot_df$label2 == FALSE,], aes(x = x, y = y), color = "#AAAAAA") +
+  geom_point(data = plot_df[plot_df$label == "ORIGINAL DATA" & plot_df$label2 == TRUE,], aes(x = x, y = y), color = "blue") +
   xlab("time index") +
   ylab("PC1")
+p2 <- ggplot() +
+  geom_point(data = plot_df[plot_df$label == "MODIFIED DATA" & plot_df$label2 == FALSE,], aes(x = x, y = y), color = "#AAAAAA") +
+  geom_point(data = plot_df[plot_df$label == "MODIFIED DATA" & plot_df$label2 == TRUE,], aes(x = x, y = y), color = "blue") +
+  xlab("time index") +
+  ylab("PC1")
+grid.arrange(p1, p2, nrow = 2)
 
 # ----------------------------------------------------------------------------------------------
 #   SAVE OUTPUT
