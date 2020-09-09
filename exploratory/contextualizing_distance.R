@@ -75,6 +75,8 @@ for(host in names(Sigmas)) {
 ##     Parse unfiltered Johnson et al. (2019) data; MAP estimates only
 ## --------------------------------------------------------------------------------------------------------
 
+cat("Loading Johnson et al. (2019)...\n")
+
 data_file <- file.path("input","fit_johnson.rds")
 if(file.exists(data_file)) {
   vectorized_Sigmas_johnson2019 <- readRDS(data_file)
@@ -208,6 +210,8 @@ if(file.exists(data_file)) {
 ##     Parse unfiltered Dethlefsen & Relman (2011) data; MAP estimates only
 ## --------------------------------------------------------------------------------------------------------
 
+cat("Loading Dethlefsen & Relman (2011)...\n")
+
 data_file <- file.path("input","fit_dethlefsen.rds")
 if(file.exists(data_file)) {
   vectorized_Sigmas_dethlefsenrelman2011 <- readRDS(data_file)
@@ -337,6 +341,8 @@ if(file.exists(data_file)) {
 ## --------------------------------------------------------------------------------------------------------
 ##     Parse unfiltered Caporaso (2011) data
 ## --------------------------------------------------------------------------------------------------------
+
+cat("Loading Caporaso (2011)...\n")
 
 data_file <- file.path("input","fit_caporaso.rds")
 if(file.exists(data_file)) {
@@ -532,6 +538,8 @@ if(file.exists(data_file)) {
 ##     Parse David (2014) data
 ## --------------------------------------------------------------------------------------------------------
 
+cat("Loading David et al. (2014)...\n")
+
 data_file <- file.path("input","fit_david.rds")
 if(file.exists(data_file)) {
   vectorized_Sigmas_david2014 <- readRDS(data_file)
@@ -550,9 +558,6 @@ if(file.exists(data_file)) {
   # I'm guessing about these indices; need to check
   subjA_idx <- 1:300
   subjB_idx <- 301:ncol(counts)
-  
-  subjA_idx <- 1:50
-  subjB_idx <- 300:350
   
   # filter low abundance taxa
   # counts <- counts[rowMeans(counts) > 100,]
@@ -678,23 +683,23 @@ calc_map_xy <- function(vectorized_Sigmas) {
 
 if(use_MAP) {
   plot_df <- data.frame(x = c(), y = c(), group = c())
-  point <- calc_map_xy(vectorized_Sigmas_johnson2019[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Johnson et al. (2019)"))
-  point <- calc_map_xy(vectorized_Sigmas_dethlefsenrelman2011[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Dethlefsen & Relman (2011)"))
-  point <- calc_map_xy(vectorized_Sigmas_caporaso2011[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011)"))
-  point <- calc_map_xy(vectorized_Sigmas_david2014[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "David et al. (2014)"))
-  # for(m in 1:n_subsets) {
-  #   point <- calc_map_xy(vectorized_Sigmas_caporaso2011_subsetted[,,1,m])
-  #   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011), subsetted"))
-  # }
   for(group in unlist(unique(labels))) {
     group_Sigmas <- vectorized_Sigmas[unname(which(labels == group)),]
     point <- calc_map_xy(group_Sigmas)
     plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = paste0("ABRP group ",group)))
   }
+  point <- calc_map_xy(vectorized_Sigmas_caporaso2011[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011)"))
+  point <- calc_map_xy(vectorized_Sigmas_david2014[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "David et al. (2014)"))
+  point <- calc_map_xy(vectorized_Sigmas_dethlefsenrelman2011[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Dethlefsen & Relman (2011)"))
+  point <- calc_map_xy(vectorized_Sigmas_johnson2019[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Johnson et al. (2019)"))
+  # for(m in 1:n_subsets) {
+  #   point <- calc_map_xy(vectorized_Sigmas_caporaso2011_subsetted[,,1,m])
+  #   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011), subsetted"))
+  # }
 } else {
   plot_df <- data.frame(x = c(), y = c(), group = c())
   # Johnson et al. (2019)
