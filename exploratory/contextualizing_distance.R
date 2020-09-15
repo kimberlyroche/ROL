@@ -23,6 +23,109 @@ filter_taxa <- function(counts) {
   mean_rel_abundance >= 0.001
 }
 
+# counts is taxa x samples
+# host_columns is a list (length = num. hosts) of host column indices in counts
+# host_dates is a list (length = num. hosts) of host sample dates associated with the columns in counts
+# depth is the number of posterior samples to draw (depth = 1 is MAP estimation)
+fit_model <- function(counts, host_columns, host_dates, depth = 1) {
+  D <- nrow(counts)
+  n_interactions <- (D^2)/2 - D/2
+  vectorized_Sigmas <- array(NA, dim = c(length(host_columns), n_interactions, depth))
+  
+  for(subject in 1:length(host_columns)) {
+    cat("Evaluating subject:",subject,"\n")
+    subject_samples <- host_columns[[subject]]
+    subject_dates <- host_dates[[subject]] + 1
+    if(length(subject_samples) > 0) {
+      subject_counts <- counts[,subject_samples] # omitting taxonomy
+      # later: we probably want to this about removing taxa that are very rare within any individual
+      
+      # fit this with stray::basset
+      Y <- as.matrix(subject_counts)
+      X <- matrix(subject_dates, 1, length(subject_dates))
+      
+      alr_ys <- driver::alr((t(Y) + 0.5))
+      alr_means <- colMeans(alr_ys)
+      Theta <- function(X) matrix(alr_means, D-1, ncol(X))
+      
+      taxa_covariance <- get_Xi(D, total_variance = 1)
+      
+      rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 7)
+      Gamma <- function(X) {
+        SE(X, sigma = 1, rho = rho, jitter = 1e-08)
+      }
+      
+      if(depth == 1) {
+        n_samples <- 0
+        ret_mean <- TRUE
+      } else {
+        n_samples <- 20
+        ret_mean <- FALSE
+      }
+      
+      # full data set
+      fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
+                           n_samples = n_samples, ret_mean = ret_mean,
+                           b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
+                           max_iter = 10000L, optim_method = "adam")
+      
+      fit.clr <- to_clr(fit)
+      Sigmas <- fit.clr$Sigma
+      for(k in 1:depth) {
+        temp <- cov2cor(Sigmas[,,k])
+        temp <- c(temp[upper.tri(temp, diag = F)])
+        vectorized_Sigmas[subject,,k] <- temp
+      }
+    } else {
+      cat("\tSkipping subject",subject,"\n")
+    }
+  }
+  return(vectorized_Sigmas)
+}
+
+# TO DO: general purpose fit visualization function
+# visualize the last fitted model for plausibility
+# fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
+#                     n_samples = 500, ret_mean = FALSE)
+# #                     max_iter = 10000L, optim_method = "adam")
+# Eta <- predict(fit, subject_dates, response = "Eta", iter = fit$iter)
+# Eta <- alrInv_array(Eta, fit$D, 1)
+# Eta <- clr_array(Eta, 1)
+# lr_ys <- clr(t(fit$Y) + 0.5)
+# 
+# coord <- sample(1:D)[1]
+# observations <- subject_dates
+# lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
+# 
+# no_samples <- dim(Eta)[3]
+# posterior_samples <- gather_array(Eta[coord,,], "logratio_value", "observation", "sample_number")
+# 
+# # get quantiles
+# post_quantiles <- posterior_samples %>%
+#   group_by(observation) %>%
+#   summarise(p2.5 = quantile(logratio_value, prob=0.025),
+#             p5 = quantile(logratio_value, prob=0.05),
+#             p10 = quantile(logratio_value, prob=0.1),
+#             p25 = quantile(logratio_value, prob=0.25),
+#             p50 = quantile(logratio_value, prob=0.5),
+#             mean = mean(logratio_value),
+#             p75 = quantile(logratio_value, prob=0.75),
+#             p90 = quantile(logratio_value, prob=0.9),
+#             p95 = quantile(logratio_value, prob=0.95),
+#             p97.5 = quantile(logratio_value, prob=0.975)) %>%
+#   ungroup()
+# 
+# p <- ggplot(post_quantiles, aes(x=observation, y=mean)) +
+#   geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
+#   geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
+#   geom_line(color="blue") +
+#   geom_point(data=lr_tidy[lr_tidy$logratio_coord == coord,], aes(x=timepoint, y=logratio_value), alpha=0.5) +
+#   theme_minimal() +
+#   theme(axis.title.x = element_blank(),
+#         axis.text.x = element_text(angle=45)) +
+#   ylab("LR coord")
+# show(p)
+
 ## --------------------------------------------------------------------------------------------------------
 ##     Parse ABRP data
 ## --------------------------------------------------------------------------------------------------------
@@ -88,121 +191,27 @@ if(file.exists(data_file)) {
   # filter to some minimum relative average abundance
   retain_idx <- filter_taxa(counts[,2:ncol(counts)])
   counts <- counts[retain_idx,]
-  
-  if(use_MAP) {
-    depth <- 1
-  } else {
-    depth <- 20
-  }
-  
-  D <- nrow(counts)
-  n_interactions <- (D^2)/2 - D/2
-  vectorized_Sigmas_johnson2019 <- array(NA, dim = c(length(unique(mapping$UserName)), n_interactions, depth))
-  subjects <- unique(mapping$UserName)
-  
+
+  subjects <- unique(mapping$UserName)  
+  host_columns <- list()
+  host_dates <- list()
   for(i in 1:length(subjects)) {
     subject <- subjects[i]
-    cat("Evaluating subject:",subject,"\n")
-    subject_samples <- mapping[mapping$UserName == subject,]$SampleID
+    subject_sample_IDs <- mapping[mapping$UserName == subject,]$SampleID
     subject_days <- mapping[mapping$UserName == subject,]$StudyDayNo
-    samples_to_pull <- colnames(counts)[which(colnames(counts) %in% subject_samples)]
-    if(length(samples_to_pull) > 0) {
-      subject_days <- which(subject_samples %in% samples_to_pull)
-      subject_counts <- counts[,samples_to_pull] # omitting taxonomy
-      # later: we probably want to this about removing taxa that are very rare within any individual
-      
-      # fit this with stray::basset
-      Y <- as.matrix(subject_counts)
-      X <- matrix(subject_days, 1, length(subject_days))
-      
-      alr_ys <- driver::alr((t(Y) + 0.5))
-      alr_means <- colMeans(alr_ys)
-      Theta <- function(X) matrix(alr_means, D-1, ncol(X))
-      
-      taxa_covariance <- get_Xi(D, total_variance = 1)
-      
-      rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 1)
-      Gamma <- function(X) {
-        SE(X, sigma = 1, rho = rho, jitter = 1e-08)
-      }
-      
-      if(use_MAP) {
-        n_samples <- 0
-        ret_mean <- TRUE
-      } else {
-        n_samples <- 20
-        ret_mean <- FALSE
-      }
-        
-      fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-                           n_samples = n_samples, ret_mean = ret_mean,
-                           b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
-                           max_iter = 10000L, optim_method = "adam")
-      fit.clr <- to_clr(fit)
-      Sigmas <- fit.clr$Sigma
-      for(k in 1:depth) {
-        temp <- cov2cor(Sigmas[,,k])
-        temp <- c(temp[upper.tri(temp, diag = F)])
-        vectorized_Sigmas_johnson2019[i,,k] <- temp
-      }
-    } else {
-      cat("\tSkipping subject",subject,"\n")
+    subject_columns <- which(colnames(counts) %in% subject_sample_IDs)
+    subject_days <- which(subject_sample_IDs %in% colnames(counts)[subject_columns])
+    if(length(subject_days) > 0) {
+      subject_days <- subject_days - min(subject_days)
+      idx <- length(host_columns) + 1
+      host_columns[[idx]] <- subject_columns
+      host_dates[[idx]] <- subject_days
     }
   }
-
-  # subject to complete cases (e.g. remove rows for the individuals with too few samples)
-  include_rows <- which(!is.na(vectorized_Sigmas_johnson2019[,1,1]))
-  vectorized_Sigmas_johnson2019 <- vectorized_Sigmas_johnson2019[include_rows,,,drop=F]
+  
+  vectorized_Sigmas_johnson2019 <- fit_model(counts, host_columns, host_dates)
   saveRDS(vectorized_Sigmas_johnson2019, file = data_file)
 }
-
-# # visualize the last fitted model for plausibility
-# fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-#                      n_samples = 500, ret_mean = FALSE, 
-#                      b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
-#                      max_iter = 10000L, optim_method = "adam")
-# Eta <- predict(fit, t(subject_days), response = "Eta", iter = fit$iter)
-# Eta <- alrInv_array(Eta, fit$D, 1)
-# Eta <- clr_array(Eta, 1)
-# lr_ys <- clr(t(fit$Y) + 0.5)
-# 
-# coord <- sample(1:D)[1]
-# observations <- subject_days
-# lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
-# 
-# # replace timepoints with observation dates for readability
-# # map <- data.frame(timepoint=1:length(observations), observation=c(observations))
-# # lr_tidy <- merge(lr_tidy, map, by="timepoint")
-# # lr_tidy <- lr_tidy[,!(names(lr_tidy) %in% c("timepoint"))]
-# 
-# no_samples <- dim(Eta)[3]
-# posterior_samples <- gather_array(Eta[coord,,], "logratio_value", "observation", "sample_number")
-#   
-# # get quantiles
-# post_quantiles <- posterior_samples %>%
-#   group_by(observation) %>%
-#   summarise(p2.5 = quantile(logratio_value, prob=0.025),
-#             p5 = quantile(logratio_value, prob=0.05),
-#             p10 = quantile(logratio_value, prob=0.1),
-#             p25 = quantile(logratio_value, prob=0.25),
-#             p50 = quantile(logratio_value, prob=0.5),
-#             mean = mean(logratio_value),
-#             p75 = quantile(logratio_value, prob=0.75),
-#             p90 = quantile(logratio_value, prob=0.9),
-#             p95 = quantile(logratio_value, prob=0.95),
-#             p97.5 = quantile(logratio_value, prob=0.975)) %>%
-#   ungroup()
-#   
-# p <- ggplot(post_quantiles, aes(x=observation, y=mean)) +
-#   geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
-#   geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
-#   geom_line(color="blue") +
-#   geom_point(data=lr_tidy[lr_tidy$logratio_coord == coord,], aes(x=timepoint, y=logratio_value), alpha=0.5) +
-#   theme_minimal() +
-#   theme(axis.title.x = element_blank(),
-#         axis.text.x = element_text(angle=45)) +
-#   ylab("LR coord")
-# show(p)
 
 ## --------------------------------------------------------------------------------------------------------
 ##     Parse unfiltered Dethlefsen & Relman (2011) data; MAP estimates only
@@ -227,112 +236,17 @@ if(file.exists(data_file)) {
   metadata$date <- as.Date(mdy(metadata$date))
   
   host_columns <- list(1:56, 57:108, 109:162) # individuals 1, 2, 3
-  
-  if(use_MAP) {
-    depth <- 1
-  } else {
-    depth <- 20
-  }
-  
-  D <- nrow(counts)
-  n_interactions <- (D^2)/2 - D/2
-  vectorized_Sigmas_dethlefsenrelman2011 <- array(NA, dim = c(length(host_columns), n_interactions, depth))
-  
-  for(subject in 1:length(host_columns)) {
-    cat("Evaluating subject:",subject,"\n")
-    subject_samples <- host_columns[[subject]]
-    subject_dates <- metadata[metadata$sample %in% colnames(counts[subject_samples]),]$date
-    # these appear to be pulled in order
-    subject_days <- sapply(subject_dates, function(x) {
+  host_dates <- list()
+  for(i in 1:3) {
+    subject_dates <- metadata[metadata$sample %in% colnames(counts[host_columns[[i]]]),]$date
+    host_dates[[i]] <- sapply(subject_dates, function(x) {
       difftime(x, subject_dates[1], units = "days")
     })
-    if(length(subject_samples) > 0) {
-      subject_counts <- counts[,subject_samples] # omitting taxonomy
-      dim(subject_counts)
-      # later: we probably want to this about removing taxa that are very rare within any individual
-      
-      # fit this with stray::basset
-      Y <- as.matrix(subject_counts)
-      X <- matrix(subject_days, 1, length(subject_days))
-      
-      alr_ys <- driver::alr((t(Y) + 0.5))
-      alr_means <- colMeans(alr_ys)
-      Theta <- function(X) matrix(alr_means, D-1, ncol(X))
-      
-      taxa_covariance <- get_Xi(D, total_variance = 1)
-      
-      rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 7)
-      Gamma <- function(X) {
-        SE(X, sigma = 1, rho = rho, jitter = 1e-08)
-      }
-      
-      if(use_MAP) {
-        n_samples <- 0
-        ret_mean <- TRUE
-      } else {
-        n_samples <- 20
-        ret_mean <- FALSE
-      }
-      
-      fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-                           n_samples = n_samples, ret_mean = ret_mean,
-                           b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
-                           max_iter = 10000L, optim_method = "adam")
-      
-      fit.clr <- to_clr(fit)
-      Sigmas <- fit.clr$Sigma
-      for(k in 1:depth) {
-        temp <- cov2cor(Sigmas[,,k])
-        temp <- c(temp[upper.tri(temp, diag = F)])
-        vectorized_Sigmas_dethlefsenrelman2011[subject,,k] <- temp
-      }
-    } else {
-      cat("\tSkipping subject",subject,"\n")
-    }
   }
+  
+  vectorized_Sigmas_dethlefsenrelman2011 <- fit_model(counts, host_columns, host_dates)
   saveRDS(vectorized_Sigmas_dethlefsenrelman2011, file = data_file)
 }
-
-# # visualize the last fitted model for plausibility
-# fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-#                      n_samples = 500, ret_mean = FALSE)
-# Eta <- predict(fit, subject_days, response = "Eta", iter = fit$iter)
-# Eta <- alrInv_array(Eta, fit$D, 1)
-# Eta <- clr_array(Eta, 1)
-# lr_ys <- clr(t(fit$Y) + 0.5)
-# 
-# coord <- sample(1:D)[1]
-# observations <- subject_days
-# lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
-# 
-# no_samples <- dim(Eta)[3]
-# posterior_samples <- gather_array(Eta[coord,,], "logratio_value", "observation", "sample_number")
-# 
-# # get quantiles
-# post_quantiles <- posterior_samples %>%
-#   group_by(observation) %>%
-#   summarise(p2.5 = quantile(logratio_value, prob=0.025),
-#            p5 = quantile(logratio_value, prob=0.05),
-#            p10 = quantile(logratio_value, prob=0.1),
-#            p25 = quantile(logratio_value, prob=0.25),
-#            p50 = quantile(logratio_value, prob=0.5),
-#            mean = mean(logratio_value),
-#           p75 = quantile(logratio_value, prob=0.75),
-#            p90 = quantile(logratio_value, prob=0.9),
-#            p95 = quantile(logratio_value, prob=0.95),
-#            p97.5 = quantile(logratio_value, prob=0.975)) %>%
-#  ungroup()
-# 
-# p <- ggplot(post_quantiles, aes(x=observation, y=mean)) +
-#   geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
-#   geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
-#   geom_line(color="blue") +
-#   geom_point(data=lr_tidy[lr_tidy$logratio_coord == coord,], aes(x=timepoint, y=logratio_value), alpha=0.5) +
-#   theme_minimal() +
-#   theme(axis.title.x = element_blank(),
-#         axis.text.x = element_text(angle=45)) +
-#   ylab("LR coord")
-# show(p)
 
 ## --------------------------------------------------------------------------------------------------------
 ##     Parse unfiltered Caporaso (2011) data
@@ -358,175 +272,14 @@ if(file.exists(data_file)) {
   counts <- counts[c(TRUE, retain_idx),]
   
   host_columns <- list(1:ncol(counts_1), (ncol(counts_1)+1):ncol(counts)) # individuals 1, 2
-  pairwise_combos <- get_pairwise_combos(nrow(counts) - 1)
-  
-  if(use_MAP) {
-    depth <- 1
-  } else {
-    depth <- 20
+  host_dates <- list()
+  for(i in 1:2) {
+    host_dates[[i]] <- unname(unlist(counts[1,host_columns[[i]]]))
   }
   
-  D <- nrow(counts) - 1
-  n_interactions <- (D^2)/2 - D/2
-  vectorized_Sigmas_caporaso2011 <- array(NA, dim = c(length(host_columns), n_interactions, depth))
-  
-  for(subject in 1:length(host_columns)) {
-    cat("Evaluating subject:",subject,"\n")
-    subject_samples <- host_columns[[subject]]
-    subject_dates <- counts[1,host_columns[[subject]]]
-    if(length(subject_samples) > 0) {
-      subject_counts <- counts[2:nrow(counts),subject_samples] # omitting taxonomy
-      # later: we probably want to this about removing taxa that are very rare within any individual
-      
-      # fit this with stray::basset
-      Y <- as.matrix(subject_counts)
-      X <- matrix(subject_dates, 1, length(subject_dates))
-      
-      alr_ys <- driver::alr((t(Y) + 0.5))
-      alr_means <- colMeans(alr_ys)
-      Theta <- function(X) matrix(alr_means, D-1, ncol(X))
-      
-      taxa_covariance <- get_Xi(D, total_variance = 1)
-      
-      rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 7)
-      Gamma <- function(X) {
-        SE(X, sigma = 1, rho = rho, jitter = 1e-08)
-      }
-      
-      if(use_MAP) {
-        n_samples <- 0
-        ret_mean <- TRUE
-      } else {
-        n_samples <- 20
-        ret_mean <- FALSE
-      }
-      
-      # full data set
-      fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-                           n_samples = n_samples, ret_mean = ret_mean,
-                           b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
-                           max_iter = 10000L, optim_method = "adam")
-      
-      fit.clr <- to_clr(fit)
-      Sigmas <- fit.clr$Sigma
-      for(k in 1:depth) {
-        temp <- cov2cor(Sigmas[,,k])
-        temp <- c(temp[upper.tri(temp, diag = F)])
-        vectorized_Sigmas_caporaso2011[subject,,k] <- temp
-      }
-    } else {
-      cat("\tSkipping subject",subject,"\n")
-    }
-  }
+  vectorized_Sigmas_caporaso2011 <- fit_model(counts, host_columns, host_dates)
   saveRDS(vectorized_Sigmas_caporaso2011, file = data_file)
 }
-
-# n_subsets <- 20
-# vectorized_Sigmas_caporaso2011_subsetted <- array(NA, dim = c(length(host_columns), n_interactions, depth, n_subsets))
-# 
-# for(m in 1:n_subsets) {
-#   # subset the Caporaso data to the same number of samples as the Johnson et al. data
-#   host_columns <- list(1:ncol(counts_1), (ncol(counts_1)+1):ncol(counts)) # individuals 1, 2
-#   # subset CONSEQUTIVE in time
-#   # offset1 <- floor(runif(1, min = 1, max = length(host_columns[[1]]) - 17))
-#   # offset2 <- floor(runif(1, min = 1, max = length(host_columns[[2]]) - 17))
-#   # host_columns[[1]] <- host_columns[[1]][offset1:(offset1+16)]
-#   # host_columns[[2]] <- host_columns[[2]][offset2:(offset2+16)]
-#   # subset GAPPED in time
-#   host_columns[[1]] <- sort(sample(host_columns[[1]])[1:17])
-#   host_columns[[2]] <- sort(sample(host_columns[[2]])[1:17])
-#   
-#   for(subject in 1:length(host_columns)) {
-#     cat("Evaluating subject:",subject,"\n")
-#     subject_samples <- host_columns[[subject]]
-#     subject_dates <- counts[1,host_columns[[subject]]]
-#     if(length(subject_samples) > 0) {
-#       subject_counts <- counts[2:nrow(counts),subject_samples] # omitting taxonomy
-#       # later: we probably want to this about removing taxa that are very rare within any individual
-#       
-#       # fit this with stray::basset
-#       Y <- as.matrix(subject_counts)
-#       X <- matrix(subject_dates, 1, length(subject_dates))
-#       
-#       alr_ys <- driver::alr((t(Y) + 0.5))
-#       alr_means <- colMeans(alr_ys)
-#       Theta <- function(X) matrix(alr_means, D-1, ncol(X))
-#       
-#       taxa_covariance <- get_Xi(D, total_variance = 1)
-#       
-#       rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 7)
-#       Gamma <- function(X) {
-#         SE(X, sigma = 1, rho = rho, jitter = 1e-08)
-#       }
-#       
-#       if(use_MAP) {
-#         n_samples <- 0
-#         ret_mean <- TRUE
-#       } else {
-#         n_samples <- 20
-#         ret_mean <- FALSE
-#       }
-#       
-#       # full data set
-#       fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-#                            n_samples = n_samples, ret_mean = ret_mean,
-#                            b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
-#                            max_iter = 10000L, optim_method = "adam")
-#       
-#       fit.clr <- to_clr(fit)
-#       Sigmas <- fit.clr$Sigma
-#       for(k in 1:depth) {
-#         temp <- cov2cor(Sigmas[,,k])
-#         temp <- c(temp[upper.tri(temp, diag = F)])
-#         vectorized_Sigmas_caporaso2011_subsetted[subject,,k,m] <- temp
-#       }
-#     } else {
-#       cat("\tSkipping subject",subject,"\n")
-#     }
-#   }
-# }
-
-# # visualize the last fitted model for plausibility
-# fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-#                      n_samples = 500, ret_mean = FALSE)
-# #                     max_iter = 10000L, optim_method = "adam")
-# Eta <- predict(fit, subject_dates, response = "Eta", iter = fit$iter)
-# Eta <- alrInv_array(Eta, fit$D, 1)
-# Eta <- clr_array(Eta, 1)
-# lr_ys <- clr(t(fit$Y) + 0.5)
-# 
-# coord <- sample(1:D)[1]
-# observations <- subject_dates
-# lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
-# 
-# no_samples <- dim(Eta)[3]
-# posterior_samples <- gather_array(Eta[coord,,], "logratio_value", "observation", "sample_number")
-# 
-# # get quantiles
-# post_quantiles <- posterior_samples %>%
-#   group_by(observation) %>%
-#   summarise(p2.5 = quantile(logratio_value, prob=0.025),
-#             p5 = quantile(logratio_value, prob=0.05),
-#             p10 = quantile(logratio_value, prob=0.1),
-#             p25 = quantile(logratio_value, prob=0.25),
-#             p50 = quantile(logratio_value, prob=0.5),
-#             mean = mean(logratio_value),
-#             p75 = quantile(logratio_value, prob=0.75),
-#             p90 = quantile(logratio_value, prob=0.9),
-#             p95 = quantile(logratio_value, prob=0.95),
-#             p97.5 = quantile(logratio_value, prob=0.975)) %>%
-#   ungroup()
-# 
-# p <- ggplot(post_quantiles, aes(x=observation, y=mean)) +
-#   geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
-#   geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
-#   geom_line(color="blue") +
-#   geom_point(data=lr_tidy[lr_tidy$logratio_coord == coord,], aes(x=timepoint, y=logratio_value), alpha=0.5) +
-#   theme_minimal() +
-#   theme(axis.title.x = element_blank(),
-#         axis.text.x = element_text(angle=45)) +
-#   ylab("LR coord")
-# show(p)
 
 ## --------------------------------------------------------------------------------------------------------
 ##     Parse David (2014) data
@@ -600,114 +353,119 @@ if(file.exists(data_file)) {
   host_columns <- list(1:length(subj_A_days), (length(subj_A_days) + 1):ncol(counts)) # individuals 1, 2
   host_dates <- list(subj_A_days, subj_B_days)
 
-  # for testing
-  #host_columns[[1]] <- host_columns[[1]][1:50]
-  #host_columns[[2]] <- host_columns[[2]][1:50]
-  #host_dates[[1]] <- host_dates[[1]][1:50]
-  #host_dates[[2]] <- host_dates[[2]][1:50]
-    
-  if(use_MAP) {
-    depth <- 1
-  } else {
-    depth <- 20
-  }
-  
-  D <- nrow(counts)
-  n_interactions <- (D^2)/2 - D/2
-  vectorized_Sigmas_david2014 <- array(NA, dim = c(length(host_columns), n_interactions, depth))
-  
-  for(subject in 1:length(host_columns)) {
-    cat("Evaluating subject:",subject,"\n")
-    subject_samples <- host_columns[[subject]]
-    subject_dates <- host_dates[[subject]] + 1
-    if(length(subject_samples) > 0) {
-      subject_counts <- counts[,subject_samples] # omitting taxonomy
-      # later: we probably want to this about removing taxa that are very rare within any individual
-      
-      # fit this with stray::basset
-      Y <- as.matrix(subject_counts)
-      X <- matrix(subject_dates, 1, length(subject_dates))
-      
-      alr_ys <- driver::alr((t(Y) + 0.5))
-      alr_means <- colMeans(alr_ys)
-      Theta <- function(X) matrix(alr_means, D-1, ncol(X))
-      
-      taxa_covariance <- get_Xi(D, total_variance = 1)
-      
-      rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 7)
-      Gamma <- function(X) {
-        SE(X, sigma = 1, rho = rho, jitter = 1e-08)
-      }
-      
-      if(use_MAP) {
-        n_samples <- 0
-        ret_mean <- TRUE
-      } else {
-        n_samples <- 20
-        ret_mean <- FALSE
-      }
-      
-      # full data set
-      fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-                           n_samples = n_samples, ret_mean = ret_mean,
-                           b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
-                           max_iter = 10000L, optim_method = "adam")
-      
-      fit.clr <- to_clr(fit)
-      Sigmas <- fit.clr$Sigma
-      for(k in 1:depth) {
-        temp <- cov2cor(Sigmas[,,k])
-        temp <- c(temp[upper.tri(temp, diag = F)])
-        vectorized_Sigmas_david2014[subject,,k] <- temp
-      }
-    } else {
-      cat("\tSkipping subject",subject,"\n")
-    }
-  }
+  vectorized_Sigmas_david2014 <- fit_model(counts, host_columns, host_dates)
   saveRDS(vectorized_Sigmas_david2014, file = data_file)
 }
 
-# # visualize the last fitted model for plausibility
-# fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
-#                     n_samples = 500, ret_mean = FALSE)
-# #                     max_iter = 10000L, optim_method = "adam")
-# Eta <- predict(fit, subject_dates, response = "Eta", iter = fit$iter)
-# Eta <- alrInv_array(Eta, fit$D, 1)
-# Eta <- clr_array(Eta, 1)
-# lr_ys <- clr(t(fit$Y) + 0.5)
-# 
-# coord <- sample(1:D)[1]
-# observations <- subject_dates
-# lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
-# 
-# no_samples <- dim(Eta)[3]
-# posterior_samples <- gather_array(Eta[coord,,], "logratio_value", "observation", "sample_number")
-# 
-# # get quantiles
-# post_quantiles <- posterior_samples %>%
-#   group_by(observation) %>%
-#   summarise(p2.5 = quantile(logratio_value, prob=0.025),
-#             p5 = quantile(logratio_value, prob=0.05),
-#             p10 = quantile(logratio_value, prob=0.1),
-#             p25 = quantile(logratio_value, prob=0.25),
-#             p50 = quantile(logratio_value, prob=0.5),
-#             mean = mean(logratio_value),
-#             p75 = quantile(logratio_value, prob=0.75),
-#             p90 = quantile(logratio_value, prob=0.9),
-#             p95 = quantile(logratio_value, prob=0.95),
-#             p97.5 = quantile(logratio_value, prob=0.975)) %>%
-#   ungroup()
-# 
-# p <- ggplot(post_quantiles, aes(x=observation, y=mean)) +
-#   geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
-#   geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
-#   geom_line(color="blue") +
-#   geom_point(data=lr_tidy[lr_tidy$logratio_coord == coord,], aes(x=timepoint, y=logratio_value), alpha=0.5) +
-#   theme_minimal() +
-#   theme(axis.title.x = element_blank(),
-#         axis.text.x = element_text(angle=45)) +
-#   ylab("LR coord")
-# show(p)
+## --------------------------------------------------------------------------------------------------------
+##     Parse Grossart lakes data (Germany)
+## --------------------------------------------------------------------------------------------------------
+
+data_file <- file.path("input","fit_grossart.rds")
+if(file.exists(data_file)) {
+  vectorized_Sigmas_grossart <- readRDS(data_file)
+} else {
+  counts <- readRDS("input/grossart_lakes/data.rds")
+  counts <- otu_table(counts)@.Data
+  retain_idx <- filter_taxa(counts)
+  counts <- counts[retain_idx,]
+  
+  metadata <- read.table("input/grossart_lakes/945_20190102-074005.txt", header = TRUE, stringsAsFactors = FALSE, sep = "\t")
+  
+  # look at the sample numbers per unique combo of depth and filter poresize for each lake
+  # we'll hand pick similar conditions with large sample numbers!
+  # temp <- metadata %>%
+  #   group_by(description, depth, filter_poresize) %>%
+  #   tally()
+  # print(as_tibble(temp), n = 100)
+  
+  conditions <- list(c("freshwater metagenome, Lake Breiter Luzin", "0-5", "0.2micron"),
+                     c("freshwater metagenome, Lake Grosse Fuchskuhle", "0-2", "0.2micron"),
+                     c("freshwater metagenome, Lake Melzer", "0-1", "0.2micron"),
+                     c("freshwater metagenome, Lake Stechlin", "0-10", "0.2micron"),
+                     c("freshwater metagenome, Lake Tiefwaren", "0-10", "0.2micron"))
+  
+  # cycle through and collect the samples for all of these
+  host_columns <- list()
+  host_dates <- list()
+  for(i in 1:length(conditions)) {
+    focal_md <- metadata[metadata$description == conditions[[i]][1] &
+                           metadata$depth == conditions[[i]][2] &
+                           metadata$filter_poresize == conditions[[i]][3],]
+    sample_names <- focal_md$sample_name
+    timestamps <- focal_md$collection_timestamp
+    reorder <- order(timestamps)
+    sample_names <- sample_names[reorder]
+    timestamps <- timestamps[reorder]
+    
+    # it looks like some sample names aren't in the count table?
+    matched_sample_names <- sample_names %in% colnames(counts)
+    sample_names <- sample_names[matched_sample_names]
+    timestamps <- timestamps[matched_sample_names]
+    
+    baseline_date <- timestamps[1]
+    days_vector <- unname(sapply(timestamps, function(x) difftime(as.Date(x), as.Date(baseline_date), units = "days")) + 1)
+    host_columns[[i]] <- which(colnames(counts) %in% sample_names)
+    host_dates[[i]] <- days_vector
+  }
+  
+  vectorized_Sigmas_grossart <- fit_model(counts, host_columns, host_dates)
+  saveRDS(vectorized_Sigmas_grossart, file = data_file)
+}
+
+## --------------------------------------------------------------------------------------------------------
+##     Parse McMahon lakes data (Wisconsin, USA)
+## --------------------------------------------------------------------------------------------------------
+
+# data_file <- file.path("input","fit_mcmahon.rds")
+# if(file.exists(data_file)) {
+#   vectorized_Sigmas_mcmahon <- readRDS(data_file)
+# } else {
+  counts <- readRDS("input/mcmahon_lakes/data.rds")
+  counts <- otu_table(counts)@.Data
+  retain_idx <- filter_taxa(counts)
+  counts <- counts[retain_idx,]
+  
+  metadata <- read.table("input/mcmahon_lakes/1288_20180418-110149.txt", header = TRUE, stringsAsFactors = FALSE, sep = "\t")
+
+  # lake short name to list index lookup
+  lake_name_lookup <- list()
+  host_columns <- list()
+  host_dates <- list()
+  for(i in 1:ncol(counts)) {
+    sample_id <- colnames(counts)[i]
+    metadata_idx <- which(metadata$sample_name == sample_id)
+    matches <- str_match_all(metadata$description[metadata_idx], regex("^freshwater metagenome (\\D+)(\\d+)(\\D+)(\\d+)"))
+    lake_name <- matches[[1]][1,2]
+    if(lake_name != "NSb") { # singleton
+      sample_date <- as.Date(metadata$collection_timestamp[metadata_idx])
+      if(lake_name %in% names(lake_name_lookup)) {
+        list_idx <- lake_name_lookup[[lake_name]]
+        host_columns[[list_idx]] <- c(host_columns[[list_idx]], i)
+        host_dates[[list_idx]] <- c(host_dates[[list_idx]], sample_date)
+      } else {
+        list_idx <- length(lake_name_lookup) + 1
+        lake_name_lookup[[lake_name]] <- list_idx
+        host_columns[[list_idx]] <- c(i)
+        host_dates[[list_idx]] <- sample_date
+      }
+    }
+  }
+
+  # testing
+  # host_columns <- list(host_columns[[1]], host_columns[[4]], host_columns[[5]])
+  # host_dates <- list(host_dates[[1]], host_dates[[4]], host_dates[[5]])
+  
+  # convert dates to days
+  for(i in 1:length(host_dates)) {
+    baseline_date <- min(host_dates[[i]])
+    sample_days <- sapply(host_dates[[i]], function(x) difftime(x, baseline_date, units = "days")) + 1
+    host_dates[[i]] <- sample_days
+  }
+
+  vectorized_Sigmas_mcmahon <- fit_model(counts, host_columns, host_dates)
+  saveRDS(vectorized_Sigmas_mcmahon, file = data_file)
+# }
 
 ## --------------------------------------------------------------------------------------------------------
 ##     Visualize ABRP social group vs. human data outgroups
@@ -731,6 +489,10 @@ if(use_MAP) {
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011)"))
   point <- calc_map_xy(vectorized_Sigmas_david2014[,,1])
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "David et al. (2014)"))
+  point <- calc_map_xy(vectorized_Sigmas_grossart[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Grossart lakes data"))
+  point <- calc_map_xy(vectorized_Sigmas_mcmahon[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "McMahon lakes data"))
   # for(m in 1:n_subsets) {
   #   point <- calc_map_xy(vectorized_Sigmas_caporaso2011_subsetted[,,1,m])
   #   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011), subsetted"))
@@ -780,15 +542,17 @@ p_combo <- ggplot(plot_df) +
                                 "#eba234", # ABRP
                                 "#ebb434", # ABRP
                                 "#87d132", # CAPORASO
-                                "#32d1bf", # DETHLEFSEN
-                                "#3486eb", # JOHNSON
-                                "#bd34eb"  # DAVID
+                                "#32d1bf", # DAVID
+                                "#3486eb", # DETHLEFSEN
+                                "#aaaaaa", # GROSSART
+                                "#bd34eb", # JOHNSON
+                                "#bbbbbb"  # MCMAHON
                                 )) +
   xlim(c(0,1)) +
   ylim(c(-0.1,1)) +
   xlab("avg. agreement between hosts") +
   ylab("avg. strength of associations (within hosts)")
-# print(p_combo)
+print(p_combo)
 ggsave("map_human_datasets.png", p_combo, units = "in", dpi = 100, height = 8, width = 10)
 
 ## --------------------------------------------------------------------------------------------------------
