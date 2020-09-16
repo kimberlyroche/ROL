@@ -88,16 +88,13 @@ fit_model <- function(counts, host_columns, host_dates, depth = 1) {
 # fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
 #                     n_samples = 500, ret_mean = FALSE)
 # #                     max_iter = 10000L, optim_method = "adam")
-# Eta <- predict(fit, subject_dates, response = "Eta", iter = fit$iter)
+# Eta <- predict(fit, min(subject_dates):max(subject_dates), response = "Eta", iter = fit$iter)
 # Eta <- alrInv_array(Eta, fit$D, 1)
 # Eta <- clr_array(Eta, 1)
 # lr_ys <- clr(t(fit$Y) + 0.5)
 # 
 # coord <- sample(1:D)[1]
-# observations <- subject_dates
-# lr_tidy <- gather_array(lr_ys, "logratio_value", "timepoint", "logratio_coord")
-# 
-# no_samples <- dim(Eta)[3]
+# lr_coord <- data.frame(x = subject_dates, y = lr_ys[,coord])
 # posterior_samples <- gather_array(Eta[coord,,], "logratio_value", "observation", "sample_number")
 # 
 # # get quantiles
@@ -119,7 +116,7 @@ fit_model <- function(counts, host_columns, host_dates, depth = 1) {
 #   geom_ribbon(aes(ymin=p2.5, ymax=p97.5), fill="darkgrey", alpha=0.5) +
 #   geom_ribbon(aes(ymin=p25, ymax=p75), fill="darkgrey", alpha=0.9) +
 #   geom_line(color="blue") +
-#   geom_point(data=lr_tidy[lr_tidy$logratio_coord == coord,], aes(x=timepoint, y=logratio_value), alpha=0.5) +
+#   geom_point(data = lr_coord, aes(x = x, y = y), alpha=0.5) +
 #   theme_minimal() +
 #   theme(axis.title.x = element_blank(),
 #         axis.text.x = element_text(angle=45)) +
@@ -358,6 +355,60 @@ if(file.exists(data_file)) {
 }
 
 ## --------------------------------------------------------------------------------------------------------
+##     Parse DIABIMMUNE (infants)
+## --------------------------------------------------------------------------------------------------------
+
+data_file <- file.path("input","fit_DIABIMMUNE.rds")
+if(file.exists(data_file)) {
+  vectorized_Sigmas_DIABIMMUNE <- readRDS(data_file)
+} else {
+  load("input/DIABIMMUNE/diabimmune_karelia_16s_data.rdata")
+  load("input/DIABIMMUNE/DIABIMMUNE_Karelia_metadata.RData")
+  
+  counts <- t(data_16s)
+  rm(data_16s)
+  
+  # these aren't counts but relative abundances
+  # let's dream and scale them into counts
+  for(i in 1:ncol(counts)) {
+    counts[,i] <- rmultinom(1, size = rpois(1, 10000), prob = counts[,i])
+  }
+  retain_idx <- filter_taxa(counts)
+  counts <- counts[retain_idx,]
+  
+  # use kids with at least 15 samples
+  use_subjects <- names(which(table(metadata$subjectID) >= 15))
+  #metadata <- metadata[metadata$subjectID %in% use_subjects,]
+
+  host_columns <- list()
+  host_dates <- list()
+  for(i in 1:ncol(counts)) {
+    sample_ID <- colnames(counts)[i]
+    metadata_idx <- which(metadata$SampleID == sample_ID)
+    subject_ID <- metadata$subjectID[metadata_idx]
+    if(subject_ID %in% use_subjects) {
+      age_at_collection <- metadata$age_at_collection[metadata_idx]
+      if(subject_ID %in% names(host_columns)) {
+        host_columns[[subject_ID]] <- c(host_columns[[subject_ID]], i)
+        host_dates[[subject_ID]] <- c(host_dates[[subject_ID]], age_at_collection)
+      } else {
+        host_columns[[subject_ID]] <- c(i)
+        host_dates[[subject_ID]] <- age_at_collection
+      }
+    }
+  }
+  
+  for(i in 1:length(host_dates)) {
+    baseline_day <- min(host_dates[[i]])
+    sample_days <- sapply(host_dates[[i]], function(x) x - baseline_day) + 1
+    host_dates[[i]] <- sample_days
+  }
+  
+  vectorized_Sigmas_DIABIMMUNE <- fit_model(counts, host_columns, host_dates)
+  saveRDS(vectorized_Sigmas_DIABIMMUNE, file = data_file)
+}
+
+## --------------------------------------------------------------------------------------------------------
 ##     Parse Grossart lakes data (Germany)
 ## --------------------------------------------------------------------------------------------------------
 
@@ -417,10 +468,12 @@ if(file.exists(data_file)) {
 ##     Parse McMahon lakes data (Wisconsin, USA)
 ## --------------------------------------------------------------------------------------------------------
 
-# data_file <- file.path("input","fit_mcmahon.rds")
-# if(file.exists(data_file)) {
-#   vectorized_Sigmas_mcmahon <- readRDS(data_file)
-# } else {
+data_file_1 <- file.path("input","fit_mcmahon_1.rds")
+data_file_2 <- file.path("input","fit_mcmahon_1.rds")
+if(file.exists(data_file_1) & file.exists(data_file_2)) {
+  vectorized_Sigmas_mcmahon_E <- readRDS(data_file_1)
+  vectorized_Sigmas_mcmahon_H <- readRDS(data_file_2)
+} else {
   counts <- readRDS("input/mcmahon_lakes/data.rds")
   counts <- otu_table(counts)@.Data
   retain_idx <- filter_taxa(counts)
@@ -429,43 +482,79 @@ if(file.exists(data_file)) {
   metadata <- read.table("input/mcmahon_lakes/1288_20180418-110149.txt", header = TRUE, stringsAsFactors = FALSE, sep = "\t")
 
   # lake short name to list index lookup
-  lake_name_lookup <- list()
-  host_columns <- list()
-  host_dates <- list()
+  # lake_names <- c("MA", "TB", "CB", "NS", "WSB", "SSB", "HK", "NSB")
+  metadata$lake <- NA
+  metadata$layer <- NA
+  # append more useful columns to the metadata
+  for(i in 1:nrow(metadata)) {
+    matches <- str_match_all(metadata$description[i], regex("^freshwater metagenome (\\D+)(\\d+)(\\D+)(\\d+)"))
+    lake_name <- matches[[1]][1,2]
+    if(lake_name != "NSb") {
+      layer <- str_match_all(lake_name, regex("[H|E]$"))
+      if(nrow(layer[[1]]) > 0) {
+        if(layer[[1]][1,1] == "H") {
+          # hypolimnion
+          metadata$lake[i] <- substr(lake_name, 1, str_length(lake_name)-1)
+          metadata$layer[i] <- "H"
+        } else {
+          # epilimnion
+          metadata$lake[i] <- substr(lake_name, 1, str_length(lake_name)-1)
+          metadata$layer[i] <- "E"
+        }
+      } else {
+        metadata$lake[i] <- lake_name
+      }
+    }
+  }
+  
+  host_columns_E <- list()
+  host_columns_H <- list()
+  host_dates_E <- list()
+  host_dates_H <- list()
   for(i in 1:ncol(counts)) {
     sample_id <- colnames(counts)[i]
     metadata_idx <- which(metadata$sample_name == sample_id)
-    matches <- str_match_all(metadata$description[metadata_idx], regex("^freshwater metagenome (\\D+)(\\d+)(\\D+)(\\d+)"))
-    lake_name <- matches[[1]][1,2]
-    if(lake_name != "NSb") { # singleton
+    lake_name <- metadata$lake[metadata_idx]
+    layer <- metadata$layer[metadata_idx]
+    if(!is.na(layer) & !is.na(lake_name)) { # "NSb", the singleton
       sample_date <- as.Date(metadata$collection_timestamp[metadata_idx])
-      if(lake_name %in% names(lake_name_lookup)) {
-        list_idx <- lake_name_lookup[[lake_name]]
-        host_columns[[list_idx]] <- c(host_columns[[list_idx]], i)
-        host_dates[[list_idx]] <- c(host_dates[[list_idx]], sample_date)
+      if(layer == "E") {
+        if(lake_name %in% names(host_columns_E)) {
+          host_columns_E[[lake_name]] <- c(host_columns_E[[lake_name]], i)
+          host_dates_E[[lake_name]] <- c(host_dates_E[[lake_name]], sample_date)
+        } else {
+          host_columns_E[[lake_name]] <- c(i)
+          host_dates_E[[lake_name]] <- sample_date
+        }
       } else {
-        list_idx <- length(lake_name_lookup) + 1
-        lake_name_lookup[[lake_name]] <- list_idx
-        host_columns[[list_idx]] <- c(i)
-        host_dates[[list_idx]] <- sample_date
+        if(lake_name %in% names(host_columns_H)) {
+          host_columns_H[[lake_name]] <- c(host_columns_H[[lake_name]], i)
+          host_dates_H[[lake_name]] <- c(host_dates_H[[lake_name]], sample_date)
+        } else {
+          host_columns_H[[lake_name]] <- c(i)
+          host_dates_H[[lake_name]] <- sample_date
+        }
       }
     }
   }
 
-  # testing
-  # host_columns <- list(host_columns[[1]], host_columns[[4]], host_columns[[5]])
-  # host_dates <- list(host_dates[[1]], host_dates[[4]], host_dates[[5]])
-  
   # convert dates to days
-  for(i in 1:length(host_dates)) {
-    baseline_date <- min(host_dates[[i]])
-    sample_days <- sapply(host_dates[[i]], function(x) difftime(x, baseline_date, units = "days")) + 1
-    host_dates[[i]] <- sample_days
+  for(i in 1:length(host_dates_E)) {
+    baseline_date <- min(host_dates_E[[i]])
+    sample_days <- sapply(host_dates_E[[i]], function(x) difftime(x, baseline_date, units = "days")) + 1
+    host_dates_E[[i]] <- sample_days
   }
-
-  vectorized_Sigmas_mcmahon <- fit_model(counts, host_columns, host_dates)
-  saveRDS(vectorized_Sigmas_mcmahon, file = data_file)
-# }
+  for(i in 1:length(host_dates_H)) {
+    baseline_date <- min(host_dates_H[[i]])
+    sample_days <- sapply(host_dates_H[[i]], function(x) difftime(x, baseline_date, units = "days")) + 1
+    host_dates_H[[i]] <- sample_days
+  }
+  
+  vectorized_Sigmas_mcmahon_E <- fit_model(counts, host_columns_E, host_dates_E)
+  saveRDS(vectorized_Sigmas_mcmahon_E, file = data_file_1)
+  vectorized_Sigmas_mcmahon_H <- fit_model(counts, host_columns_H, host_dates_H)
+  saveRDS(vectorized_Sigmas_mcmahon_H, file = data_file_2)
+}
 
 ## --------------------------------------------------------------------------------------------------------
 ##     Visualize ABRP social group vs. human data outgroups
@@ -489,10 +578,14 @@ if(use_MAP) {
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011)"))
   point <- calc_map_xy(vectorized_Sigmas_david2014[,,1])
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "David et al. (2014)"))
+  point <- calc_map_xy(vectorized_Sigmas_DIABIMMUNE[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "DIABIMMUNE"))
   point <- calc_map_xy(vectorized_Sigmas_grossart[,,1])
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Grossart lakes data"))
-  point <- calc_map_xy(vectorized_Sigmas_mcmahon[,,1])
-  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "McMahon lakes data"))
+  point <- calc_map_xy(vectorized_Sigmas_mcmahon_E[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "McMahon lakes data (epilimnion)"))
+  point <- calc_map_xy(vectorized_Sigmas_mcmahon_H[,,1])
+  plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "McMahon lakes data (hypolimnion)"))
   # for(m in 1:n_subsets) {
   #   point <- calc_map_xy(vectorized_Sigmas_caporaso2011_subsetted[,,1,m])
   #   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Caporaso et al. (2011), subsetted"))
@@ -544,10 +637,12 @@ p_combo <- ggplot(plot_df) +
                                 "#87d132", # CAPORASO
                                 "#32d1bf", # DAVID
                                 "#3486eb", # DETHLEFSEN
-                                "#aaaaaa", # GROSSART
+                                "#ffa7b6", # DIABIMMUNE
+                                "#999999", # GROSSART
                                 "#bd34eb", # JOHNSON
-                                "#bbbbbb"  # MCMAHON
-                                )) +
+                                "#aaaaaa", # MCMAHON (epilimnion; shallow water)
+                                "#bbbbbb"  # MCMAHON (hypolimnion; deep water)
+  )) +
   xlim(c(0,1)) +
   ylim(c(-0.1,1)) +
   xlab("avg. agreement between hosts") +
