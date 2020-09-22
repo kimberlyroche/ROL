@@ -774,15 +774,16 @@ if(use_MAP) {
 
 p_combo <- ggplot(plot_df) +
   geom_point(aes(x = y, y = x, color = group), size = 4, stroke = 1) +
-  scale_color_manual(values = c("#eb7434", # ABRP
+  scale_color_manual(values = c(
+                                "#3486eb", # JOHNSON
+                                "#32d1bf", # DETHLEFSEN
+                                "#87d132", # CAPORASO
+                                "#bd34eb", # DAVID
+                                "#eb7434", # ABRP
                                 "#eb8034", # ABRP
                                 "#eb8f34", # ABRP
                                 "#eba234", # ABRP
-                                "#ebb434", # ABRP
-                                "#87d132", # CAPORASO
-                                "#32d1bf", # DETHLEFSEN
-                                "#3486eb", # JOHNSON
-                                "#bd34eb"  # DAVID
+                                "#ebb434"  # ABRP
                                 )) +
   xlim(c(0,1)) +
   ylim(c(-0.1,1)) +
