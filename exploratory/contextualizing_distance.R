@@ -560,6 +560,7 @@ if(file.exists(data_file_1) & file.exists(data_file_2)) {
 ##     Visualize ABRP social group vs. human data outgroups
 ## --------------------------------------------------------------------------------------------------------
 
+# note: x and y are swapped on the rendered plot!
 calc_map_xy <- function(vectorized_Sigmas) {
   within_score <- mean(apply(abs(vectorized_Sigmas), 1, mean))
   between_score <- mean(apply(combn(1:nrow(vectorized_Sigmas), m = 2), 2, function(x) {
