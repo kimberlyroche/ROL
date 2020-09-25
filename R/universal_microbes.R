@@ -192,7 +192,10 @@ plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=N
     ggsave(file.path(save_dir,paste0("microbe_pair_correlations_",logratio,".png")),
            p, units="in", dpi=150, height=5, width=15)
     if(return_matrix) {
-      return(interactions.reordered)
+      return(list(clustering.hosts = clustering.hosts,
+                  clustering.interactions = clustering.interactions,
+                  interactions.reordered = interactions.reordered,
+                  labels.reordered = labels.reordered))
     }
   } else {
     interactions <- get_all_vs_one_correlations(taxon_idx, tax_level=tax_level, logratio=logratio, Sigmas=Sigmas)
