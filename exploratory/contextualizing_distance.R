@@ -562,7 +562,10 @@ if(file.exists(data_file_1) & file.exists(data_file_2)) {
 
 # note: x and y are swapped on the rendered plot!
 calc_map_xy <- function(vectorized_Sigmas) {
-  within_score <- mean(apply(abs(vectorized_Sigmas), 1, mean))
+  # calculate y-axis
+  # within_score <- mean(apply(abs(vectorized_Sigmas), 1, mean))
+  within_score <- sum(abs(vectorized_Sigmas) > 0.5) / (nrow(vectorized_Sigmas) * ncol(vectorized_Sigmas))
+  # calculate x-axis
   between_score <- mean(apply(combn(1:nrow(vectorized_Sigmas), m = 2), 2, function(x) {
     cor(vectorized_Sigmas[x[1],], vectorized_Sigmas[x[2],])
   }))
@@ -581,6 +584,7 @@ if(use_MAP) {
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "David et al. (2014)"))
   point <- calc_map_xy(vectorized_Sigmas_DIABIMMUNE[,,1])
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "DIABIMMUNE"))
+  
   point <- calc_map_xy(vectorized_Sigmas_grossart[,,1])
   plot_df <- rbind(plot_df, data.frame(x = point$x, y = point$y, group = "Grossart lakes data"))
   point <- calc_map_xy(vectorized_Sigmas_mcmahon_E[,,1])
@@ -644,10 +648,10 @@ p_combo <- ggplot(plot_df) +
                                 "#32d1bf", # DAVID
                                 "#3486eb", # DETHLEFSEN
                                 "#ffa7b6", # DIABIMMUNE
-                                "#999999", # GROSSART
-                                "#bd34eb", # JOHNSON
-                                "#aaaaaa", # MCMAHON (epilimnion; shallow water)
-                                "#bbbbbb"  # MCMAHON (hypolimnion; deep water)
+                                #"#999999", # GROSSART
+                                "#bd34eb" # JOHNSON
+                                #"#aaaaaa", # MCMAHON (epilimnion; shallow water)
+                                #"#bbbbbb"  # MCMAHON (hypolimnion; deep water)
   )) +
   xlim(c(0,1)) +
   ylim(c(-0.1,1)) +
