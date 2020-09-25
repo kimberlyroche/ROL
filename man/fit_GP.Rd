@@ -4,18 +4,9 @@
 \alias{fit_GP}
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
-fit_GP(
-  data,
-  host,
-  taxa_covariance,
-  sample_covariance,
-  tax_level = "ASV",
-  alr_ref = NULL,
-  n_samples = 100,
-  MAP = FALSE,
-  holdout_proportion = 0,
-  return_model = FALSE
-)
+fit_GP(data, host, taxa_covariance, sample_covariance, tax_level = "ASV",
+  alr_ref = NULL, n_samples = 100, MAP = FALSE,
+  holdout_proportion = 0, return_model = FALSE, scramble = FALSE)
 }
 \arguments{
 \item{data}{a phyloseq object}
@@ -37,6 +28,10 @@ fit_GP(
 \item{holdout_proportion}{if non-zero, proportion of host's sample to use as a test set}
 
 \item{return_model}{if TRUE, returns the fitted model instead of saving it}
+
+\item{scramble}{if TRUE, host samples are scrambled in time; this serve the diagnostic purpose of 
+identifying whether some of the correlation we see between individual hosts' dynamics
+are the result of systematic differences in abundances (etc.)}
 
 \item{rho}{bandwidth for SE kernel}
 }
