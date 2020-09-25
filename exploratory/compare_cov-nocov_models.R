@@ -101,12 +101,18 @@ render_for_condition <- function(row_ordering = NULL, column_ordering = NULL) {
     # Impose host-ordering by group (clustered within groups)
     groups <- unique(group_labels)
     host.reorder <- c()
+    host.reorder.labels <- c()
     for(g in 1:length(groups)) {
       group_idx <- which(group_labels == groups[g])
       d <- dist(associations[group_idx,])
       clustering.hosts <- hclust(d)
-      host.reorder <- c(host.reorder, group_idx[clustering.hosts$order])
+      host.reorder.within.group <- group_idx[clustering.hosts$order]
+      host.reorder <- c(host.reorder, host.reorder.within.group)
+      host.reorder.labels <- c(host.reorder.labels, unname(sapply(hosts[host.reorder.within.group], function(x) {
+        paste0(x, " (", group_labels[x], ")")
+      })))
     }
+    # print(host.reorder.labels)
     associations <- associations[host.reorder,]
   } else {
     associations <- associations[row_ordering,]
