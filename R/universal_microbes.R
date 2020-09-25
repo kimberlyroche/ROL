@@ -140,6 +140,67 @@ get_pairwise_correlations <- function(tax_level="ASV", logratio="alr", Sigmas=NU
   return(list(labels=label_pairs, interactions=interaction_pairs))
 }
 
+#' Get all pairwise (MAP) proportionalities between microbes at designated taxonomic level
+#' 
+#' @param taxon_idx the logratio coordinate to render correlations against
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
+#' @param Sigmas optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded
+#' @return correlation matrix of dimensions {number of hosts} x {number of unique interactions between logratio taxa}
+#' @export
+#' @examples
+#' interactions <- get_pairwise_proportionalities(tax_level = "ASV", logratio = "alr")
+get_pairwise_proportionalities <- function(tax_level = "ASV", logratio = "alr", Sigmas = NULL) {
+  model_list <- get_fitted_model_list(tax_level = tax_level, MAP = TRUE)
+  if(logratio == "alr") {
+    coordinate_number <- model_list$D-1
+  } else {
+    coordinate_number <- model_list$D
+  }
+  if(is.null(Sigmas)) {
+    Sigmas <- load_MAP_estimates(tax_level=tax_level, logratio=logratio)
+  }
+  if(dim(Sigmas[1][[1]])[1] != coordinate_number) {
+    stop(paste0("Dimensions of covariance matrices don't match expected logratio dimensions!\n"))
+  }
+  
+  # build a map from which we can translate an interaction number with the original pair of taxa
+  # this is clumsy but it works
+  label_pairs <- matrix(NA, coordinate_number, coordinate_number)
+  for(i in 1:coordinate_number) {
+    for(j in 1:coordinate_number) {
+      if(i < j) {
+        label_pairs[i,j] <- paste0(i,"_",j)
+      }
+    }
+  }
+  # collect unique interactions only
+  label_pairs <- label_pairs[upper.tri(label_pairs, diag=F)]
+  
+  # plot all in heatmap as hosts x pairs of microbial interaction
+  # `.tri` here indicates we're just keeping the upper triangular of the interaction matrix, i.e.
+  #   the unique interactions
+  interaction_pairs <- matrix(NA, length(model_list$hosts), (coordinate_number^2)/2 - coordinate_number/2)
+  for(m in 1:length(model_list$hosts)) {
+    host <- model_list$hosts[m]
+    # convert this host's MAP covariance to correlation
+    Sigma <- Sigmas[[m]]
+    rhos <- c()
+    for(j in 2:coordinate_number) {
+      for(i in 1:(j-1)) {
+        var_i <- Sigma[i,i]
+        var_j <- Sigma[j,j]
+        var_i_minus_j <- var_i + var_j - 2*Sigma[i,j]
+        rho_ij <- 1 - var_i_minus_j / (var_i + var_j)
+        rhos <- c(rhos, rho_ij)
+      }
+    }
+    # stack all unique pairwise correlations between microbes in a row associated with this host
+    interaction_pairs[m,] <- rhos
+  }
+  return(list(labels=label_pairs, interactions=interaction_pairs))
+}
+
 #' Plot heatmap over all pairwise (MAP) correlations between microbes at designated taxonomic level
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
@@ -162,7 +223,10 @@ plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=N
   }
 
   if(is.null(taxon_idx)) {
-    pairs_obj <- get_pairwise_correlations(tax_level=tax_level, logratio=logratio, Sigmas=Sigmas)
+    # CLR correlation
+    # pairs_obj <- get_pairwise_correlations(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas)
+    # proportionality (\rho_p as in Quinn et a.)
+    pairs_obj.prop <- get_pairwise_proportionalities(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas)
     labels <- pairs_obj$labels
     interactions <- pairs_obj$interactions
     
@@ -180,17 +244,18 @@ plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=N
       interactions.reordered <- interactions
       labels.reordered <- labels
     }
-    df <- gather_array(interactions.reordered, "correlation", "host", "pair")
+    df <- gather_array(interactions.reordered, "proportionality", "host", "pair")
     # plot
     p <- ggplot(df, aes(pair, host)) +
-      geom_tile(aes(fill = correlation)) +
+      geom_tile(aes(fill = proportionality)) +
       scale_fill_gradient2(low = "darkblue", high = "darkred")
     if(show_plot) {
       show(p)
     }
     save_dir <- check_output_dir(c("output","plots",paste0(tax_level,"_MAP")))
-    ggsave(file.path(save_dir,paste0("microbe_pair_correlations_",logratio,".png")),
+    ggsave(file.path(save_dir,paste0("microbe_pair_proportionalities_",logratio,".png")),
            p, units="in", dpi=150, height=5, width=15)
+        
     if(return_matrix) {
       return(interactions.reordered)
     }
