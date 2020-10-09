@@ -4,11 +4,8 @@
 \alias{get_pairwise_proportionalities}
 \title{Get all pairwise (MAP) proportionalities between microbes at designated taxonomic level}
 \usage{
-get_pairwise_proportionalities(
-  tax_level = "ASV",
-  logratio = "alr",
-  Sigmas = NULL
-)
+get_pairwise_proportionalities(tax_level = "ASV", logratio = "alr",
+  Sigmas = NULL)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

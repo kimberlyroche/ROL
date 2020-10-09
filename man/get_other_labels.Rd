@@ -4,12 +4,8 @@
 \alias{get_other_labels}
 \title{Get other annotations (e.g. sample number) for hosts in data set}
 \usage{
-get_other_labels(
-  centroids,
-  tax_level = "ASV",
-  annotation = "group",
-  MAP = FALSE
-)
+get_other_labels(centroids, tax_level = "ASV", annotation = "group",
+  MAP = FALSE)
 }
 \arguments{
 \item{centroids}{data.frame of per-host centroids from posterior embedding}
