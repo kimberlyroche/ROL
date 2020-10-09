@@ -10,6 +10,7 @@ library(LaplacesDemon)
 library(driver)
 library(matrixsampling)
 library(emdist)
+library(stray)
 
 calc_xy <- function(vSigmas) {
   if(is.null(dim(vSigmas))) {
@@ -72,6 +73,65 @@ generate_counts_w_cov <- function(num_taxa, num_samples, num_hosts, host_contrib
     synthetic_counts[,,h] <- counts_h
   }
   synthetic_counts
+}
+
+# simulate gLV data
+generate_gLV <- function(num_taxa, num_samples, num_hosts, host_contrib = 0.5, noise_scale = 1) {
+  abundance_scale <- 10000 # all the scales are sensitive to this and as you increase the number
+                           # of taxa, it seem to be necessary that you increase this
+  
+  # Growth and carrying capacity
+  a1 <- runif(num_taxa, min = 0.01, max = 0.05) # growth trend
+  a2_scale <- 1/abundance_scale
+  a2 <- -runif(num_taxa, min = 0.01, max = 0.05)/abundance_scale # negative pressure equiv. to a carrying capacity
+  
+  # Covariance with other taxa
+  Omega <- matrix(-(1/num_taxa), num_taxa, num_taxa)
+  diag(Omega) <- 1
+  Omega <- Omega / (abundance_scale^2)
+  nu <- 2
+  # Population baseline dynamics
+  B_pop <- matrixsampling::rinvwishart(1, num_taxa + nu, Omega*nu, checkSymmetry = FALSE)[,,1]
+  
+  synthetic_counts <- array(NA, dim = c(num_taxa, num_samples, num_hosts))
+  errored_hosts <- c()
+  for(h in 1:num_hosts) {
+    cat("Host:",h,"\n")
+    result = tryCatch({
+      # Host-level dynamics
+      B_host <- matrixsampling::rinvwishart(1, num_taxa + nu, Omega*nu, checkSymmetry = FALSE)[,,1]
+      
+      B <- (1 - host_contrib) * B_pop + host_contrib * B_host
+      X <- matrix(0, num_taxa, num_samples)
+      X[,1] <- rnorm(num_taxa, abundance_scale, 10)
+      for(i in 2:num_samples) {
+        for(ll in 1:num_taxa) {
+          p1 <- a1[ll]
+          p2 <- a2[ll] * X[ll,i-1]
+          p3 <- 0
+          for(jj in setdiff(1:num_taxa, ll)) {
+            p3 <- p3 + B[ll,jj] * X[jj,i-1]
+          }
+          p4 <- rnorm(1, 0, (abundance_scale/10)*noise_scale)
+          X[ll,i] <- X[ll,i-1] * (1 + p1 + p2 + p3) + p4
+          if(X[ll,i] < 0) {
+            X[ll,i] <- 1
+          }
+        }
+      }
+      
+      # Resample to give proportional data only
+      counts_h <- matrix(NA, num_taxa, num_samples)
+      for(i in 1:num_samples) {
+        counts_h[,i] <- rmultinom(1, size = rpois(1, lambda = 10000), prob = X[,i]/sum(X[,i]))
+      }
+      synthetic_counts[,,h] <- counts_h
+    }, error = function(e) {
+      cat("Error on host:",h,"\n")
+      errored_hosts <- c(errored_hosts, h)
+    })
+  }
+  synthetic_counts <- synthetic_counts[,,setdiff(1:num_hosts, errored_hosts)]
 }
 
 ## ------------------------------------------------------------------------------------------------
@@ -154,10 +214,8 @@ ggplot() +
   labs(fill = "weighted \nuniversality\nscore")
 
 ## ------------------------------------------------------------------------------------------------
-##   Simulations
+##   Simulations -- functions
 ## ------------------------------------------------------------------------------------------------
-
-# Functions
 
 # Plot the 2D heatmap of universality scores and map pairwise interactions onto these as a point
 # cloud
@@ -200,8 +258,8 @@ map_synthetic_data <- function(counts) {
   for(h in 1:H) {
     clr_h <- clr(t(counts[,,h]) + 0.5)
     corr_h <- c()
-    for(i in 1:(D_new - 1)) {
-      for(j in (i+1):D_new) {
+    for(i in 1:(D - 1)) {
+      for(j in (i+1):D) {
         temp <- cor(clr_h[,i], clr_h[,j])
         corr_h <- c(corr_h, temp)
       }
@@ -234,36 +292,117 @@ calculate_distance <- function(synthetic_df, observed_df) {
   emd2d(synthetic_binned_data, observed_binned_data)
 }
 
-# visualize the real data
-visualize_synthetic_data(point_data)
-ggsave("real_data.png", units = "in", dpi = 150, height = 7, width = 9)
+## ------------------------------------------------------------------------------------------------
+##   Original simulations of covariance only
+## ------------------------------------------------------------------------------------------------
+
+# # visualize the real data
+# visualize_synthetic_data(point_data)
+# ggsave("real_data.png", units = "in", dpi = 150, height = 7, width = 9)
+# 
+# D <- dim(Sigmas[[1]])[1]
+# D <- 150
+# H <- length(Sigmas)
+# H <- 50
+# N_h <- 100
+# 
+# # scenario <- 1
+# # 1: all compositions are random within and between hosts
+# #    taxa are independent
+# # 2: hosts have a baseline composition
+# #    taxa are independent
+# # 3: the population has a baseline composition and hosts have baseline compositions correlated with this
+# #    taxa are independent
+# # baseline_p <- rdirichlet(n = 1, alpha = rep(1, D))
+# # counts <- generate_counts(D, N_h, H, scenario = scenario, population_baseline_composition = baseline_p)
+# 
+# # 4: some combination of population- and host-level correlated taxa
+# sweep_host_contrib <- seq(from = 0, to = 1, by = 0.1)
+# for(host_contrib in sweep_host_contrib) {
+#   counts <- generate_counts_w_cov(D, N_h, H, host_contrib = host_contrib)
+#   synthetic_point_data <- map_synthetic_data(counts)
+#   # visualize_synthetic_data(synthetic_point_data)
+#   dist_value <- calculate_distance(synthetic_point_data, point_data)
+#   cat("Distance for combo:",round(1 - host_contrib, 1),"x",round(host_contrib, 1),":",round(dist_value, 2),"\n")
+#   visualize_synthetic_data(synthetic_point_data)
+#   ggsave(paste0("simulated_data_",host_contrib,".png"), units = "in", dpi = 150, height = 7, width = 9)
+# }
+
+## ------------------------------------------------------------------------------------------------
+##   Generalized Lotka-Volterra simulations
+## ------------------------------------------------------------------------------------------------
 
 D <- dim(Sigmas[[1]])[1]
-D <- 150
+D <- 20
 H <- length(Sigmas)
-H <- 50
+H <- 10
 N_h <- 100
 
-# scenario <- 1
-# 1: all compositions are random within and between hosts
-#    taxa are independent
-# 2: hosts have a baseline composition
-#    taxa are independent
-# 3: the population has a baseline composition and hosts have baseline compositions correlated with this
-#    taxa are independent
-# baseline_p <- rdirichlet(n = 1, alpha = rep(1, D))
-# counts <- generate_counts(D, N_h, H, scenario = scenario, population_baseline_composition = baseline_p)
-
-# 4: some combination of population- and host-level correlated taxa
-sweep_host_contrib <- seq(from = 0, to = 1, by = 0.1)
-for(host_contrib in sweep_host_contrib) {
-  counts <- generate_counts_w_cov(D, N_h, H, host_contrib = host_contrib)
-  synthetic_point_data <- map_synthetic_data(counts)
-  # visualize_synthetic_data(synthetic_point_data)
-  dist_value <- calculate_distance(synthetic_point_data, point_data)
-  cat("Distance for combo:",round(1 - host_contrib, 1),"x",round(host_contrib, 1),":",round(dist_value, 2),"\n")
-  visualize_synthetic_data(synthetic_point_data)
-  ggsave(paste0("simulated_data_",host_contrib,".png"), units = "in", dpi = 150, height = 7, width = 9)
+# Calculate the 2D "universality" mapping coordinates for all simulated interactions
+get_synthetic_data <- function(counts) {
+  D <- dim(counts)[1]
+  N_h <- dim(counts)[2]
+  H <- dim(counts)[3]
+  
+  synthetic_Sigmas <- matrix(NA, H, (D^2/2) - D/2)
+  for(h in 1:H) {
+    cat("Fitting model for host",h,"\n")
+    # fit this with stray::basset
+    Y <- counts[,,h]
+    X <- matrix(1:N_h, 1, N_h)
+    
+    alr_ys <- driver::alr((t(Y) + 0.5))
+    alr_means <- colMeans(alr_ys)
+    Theta <- function(X) matrix(alr_means, D-1, ncol(X))
+    
+    taxa_covariance <- get_Xi(D, total_variance = 1)
+    
+    rho <- calc_se_decay(min_correlation = 0.1, days_to_baseline = 7)
+    Gamma <- function(X) {
+      SE(X, sigma = 1, rho = rho, jitter = 1e-08)
+    }
+    
+    n_samples <- 0
+    n_samples <- 100
+    ret_mean <- TRUE
+    ret_mean <- FALSE
+    
+    # full data set
+    fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
+                         n_samples = n_samples, ret_mean = ret_mean)
+    
+    fit.clr <- to_clr(fit)
+    Sigma <- cov2cor(apply(fit.clr$Sigma, c(1,2), mean))
+    synthetic_Sigmas[h,] <- Sigma[upper.tri(Sigma, diag = FALSE)]
+  }
+  synthetic_Sigmas
 }
+
+map_synthetic_data2 <- function(synthetic_Sigmas) {
+  synthetic_point_data <- data.frame(x = c(), y = c())
+  for(i in 1:ncol(synthetic_Sigmas)) {
+    # if(i %% 100 == 0) {
+    #   cat("Interaction:",i,"\n")
+    # }
+    temp <- calc_xy(synthetic_Sigmas[,i])
+    synthetic_point_data <- rbind(synthetic_point_data, data.frame(x = temp$x, y = temp$y))
+  }
+  synthetic_point_data
+}
+
+# I think there's a problem with something needing to be in the global workspace in generate_gLV
+# TBD
+
+host_contrib <- 0
+counts <- generate_gLV(D, N_h, H, host_contrib = host_contrib)
+H <- dim(counts)[3] # fix the problem where some host simulations over/underflow
+
+# fit model
+synthetic_Sigmas <- get_synthetic_data(counts)
+synthetic_point_data <- map_synthetic_data2(synthetic_Sigmas)
+
+# visualize_synthetic_data(synthetic_point_data)
+visualize_synthetic_data(synthetic_point_data)
+
 
 
