@@ -4,30 +4,55 @@ library(driver)
 library(ggplot2)
 
 ## Here we're fitting the labraduck model to a few of the best sampled hosts in the ABRP data set.
-## Usage: labraduck_fit.R host_shortname covariate_flag (opt: start time idx) (opt: end time idx)
+## Usage: labraduck_fit.R
+##          host_shortname
+##          use_covariate_flag
+##          total_variance
+##          (opt: season flag, e.g. wet)
+##          (opt: start time idx, e.g. 1)
+##          (opt: end time idx, e.g. 10)
 
 options <- commandArgs(trailingOnly = TRUE)
 if(length(options) < 1) {
-  stop("Missing host argument!")
+  stop("Missing argument(s)!")
 }
 host <- options[1]
 use_covariates <- as.logical(options[2])
+var_scale <- 1
 begin_idx <- NULL
 end_idx <- NULL
+if(length(options) >= 3) {
+  var_scale <- as.numeric(options[3])
+}
+season <- NULL
 if(length(options) >= 4) {
-  begin_idx <- as.numeric(options[3])
-  end_idx <- as.numeric(options[4])
+  if(tolower(options[4]) == "wet") {
+    season <- "Wet"
+  } else if(tolower(options[4]) == "dry") {
+    season <- "Dry"
+  }
+}
+if(length(options) >= 6) {
+  begin_idx <- as.numeric(options[5])
+  end_idx <- as.numeric(options[6])
 }
 
 ## Note: for testing, ACA with observation indices 10:30 is good...
 # host <- "ACA"
+# var_scale <- 1
+# use_covariates <- TRUE
 # begin_idx <- 10
 # end_idx <- 30
-# use_covariates <- TRUE
 
 ## Local
-setwd("C:/Users/kim/Documents/ROL")
-#setwd("/data/mukherjeelab/roche/ROL")
+#setwd("C:/Users/kim/Documents/ROL")
+setwd("/data/mukherjeelab/roche/ROL")
+
+tag <- "-"
+if(use_covariates) {
+  tag <- "+"
+}
+cat("Fitting",host,"COV",tag,"\n")
 
 ## -------------------------------------------------------------------------------------------------
 ##  Functions
@@ -116,10 +141,15 @@ plot_Theta <- function(fit, lr_idx, cov_idx = 1) {
   p
 }
 
-pull_data <- function(host) {
+pull_data <- function(host, season = NULL) {
   host <<- host # weird hack for phyloseq subset_samples()
   data <- readRDS("input/filtered_family_5_20.rds")
+  # data <- readRDS("input/filtered_ASV_5_20.rds")
   data <- subset_samples(data, sname == host)
+  if(!is.null(season)) {
+    season_type <<- season
+    data <- subset_samples(data, season == season_type)
+  }
   md <- sample_data(data)
   
   # pull diet and climate data
@@ -133,10 +163,10 @@ pull_data <- function(host) {
   days <- md$collection_date
   day0 <- min(days)
   days_baseline <- round(unname(sapply(days, function(x) difftime(x, day0, units = "days")))) + 1
-  season <- md$season
-  season[season == "Dry"] <- 0
-  season[season == "Wet"] <- 1
-  season <- as.numeric(season)
+  # season <- md$season
+  # season[season == "Dry"] <- 0
+  # season[season == "Wet"] <- 1
+  # season <- as.numeric(season)
   # order is verifiably the same here
   diet_PC1 <- as.vector(scale(metadata.diet$PC1))
   rain_monthly <- as.vector(scale(metadata.diet$rain_monthly))
@@ -144,7 +174,7 @@ pull_data <- function(host) {
   rownames(counts) <- NULL
   colnames(counts) <- NULL
   return(list(counts = counts, days = days_baseline,
-              season = season, diet = diet_PC1, rain = rain_monthly))
+              diet = diet_PC1, rain = rain_monthly))
 }
 
 slice_dataset <- function(data, begin_idx, end_idx) {
@@ -157,7 +187,7 @@ slice_dataset <- function(data, begin_idx, end_idx) {
   }
   # subset all
   data$counts <- Y[,begin_idx:end_idx]
-  data$season <- data$season[begin_idx:end_idx]
+  # data$season <- data$season[begin_idx:end_idx]
   data$diet <- data$diet[begin_idx:end_idx]
   data$rain <- data$rain[begin_idx:end_idx]
   data$days <- data$days[begin_idx:end_idx]
@@ -166,7 +196,7 @@ slice_dataset <- function(data, begin_idx, end_idx) {
   return(data)
 }
 
-fit_model <- function(data, use_covariates) {
+fit_model <- function(data, use_covariates, var_scale = 1) {
   T <- max(data$days)
   # Build the pseudo-covariate matrix
   if(use_covariates) {
@@ -183,6 +213,8 @@ fit_model <- function(data, use_covariates) {
   Q <- nrow(F)
   D <- nrow(data$counts)
   W <- diag(Q)
+  # scale covariate-inclusive and covariate-exclusive models to have similar total variance
+  W <- W/nrow(W)
   G <- diag(Q)
   
   Y <- data$counts
@@ -199,8 +231,14 @@ fit_model <- function(data, use_covariates) {
   M0[1,] <- alr_means
   
   start <- Sys.time()
+
+  # I'm giving W about 1/2 the scale of gamma
+  # My thinking here is that in the gLV models we've been simulating from, we've seen that most of
+  #   the dynamism in the model results from /environmental interactions/, not innate volatility.
+  #   In my mind, giving W a smaller scale than gamma is consistent with relatively more volatility
+  #   presumed to result from interactions with the environment.
   fit <- labraduck(Y = Y, upsilon = upsilon, Xi = Xi, F = F, G = G, W = W, M0 = M0, C0 = C0,
-                   observations = data$days, gamma_scale = 1, W_scale = 1, apply_smoother=TRUE)
+                   observations = data$days, gamma_scale = var_scale*(2/3), W_scale = var_scale*(1/3), apply_smoother=TRUE)
   end <- Sys.time()
   return(list(fit = fit, runtime = end-start))
 }
@@ -209,27 +247,43 @@ fit_model <- function(data, use_covariates) {
 ##  Main
 ## -------------------------------------------------------------------------------------------------
 
-data <- pull_data(host)
-data <- slice_dataset(data, begin_idx, end_idx)
-
-tag <- "cov"
+full_data <- pull_data(host, season = season)
+tag1 <- "cov"
+tag2 <- ""
 if(!use_covariates) {
-  tag <- paste0("no",tag)
+  tag1 <- paste0("no",tag1)
 }
-base_fn <- paste0("fit_",tag,"_",host)
+if(!is.null(season)) {
+  tag2 <- tolower(season)
+}
+base_fn <- paste0("fit_",tag1,"_",host,"_",tag2)
+Sigma_fn <- paste0("Sigmas_",tag1,"_",host,"_",tag2)
 
-fit <- fit_model(data, use_covariates = use_covariates)
+# Bizarre -- dry run the model, then fit it for real.
+# I can't figure out what's happening here but the first model run always "fails" (i.e. solves with NaN)
+#   but subsequent runs always work. This stupid hack fits the model on a trivial interval and thereby
+#   loads whatever needs to be loaded (??? nothing seems to change in the global environment from run 1
+#   to run 2) such that the second run always works.
+data <- slice_dataset(full_data, 1, 3)
+fit <- fit_model(data, use_covariates, var_scale)
+
+# Real run
+data <- slice_dataset(full_data, begin_idx, end_idx)
+fit <- fit_model(data, use_covariates, var_scale)
 cat("Fit time:",fit$runtime,"sec\n")
 fit <- fit$fit
-saveRDS(fit, paste0(base_fn,".rds"))
+saveRDS(fit, file.path("DLM_output", paste0(base_fn,".rds")))
+
+fit.clr <- to_clr(fit)
+saveRDS(fit.clr$Sigma, file.path("DLM_output", paste0(Sigma_fn,".rds")))
 
 p <- plot_Eta(fit, 1)
-ggsave(paste0(base_fn,"_Theta.png"), p, dpi = 100, units = "in", height = 4, width = 12)
+ggsave(file.path("DLM_output", "images", paste0(base_fn,"_Theta.png")), p, dpi = 100, units = "in", height = 4, width = 12)
 
 if(use_covariates) {
   for(covariate in 1:3) {
     p <- plot_Theta(fit, 1, covariate)
-    ggsave(paste0(base_fn,"_Eta",covariate,".png"), p, dpi = 100, units = "in", height = 4, width = 10)
+    ggsave(file.path("DLM_output", "images", paste0(base_fn,"_Eta",covariate,".png")), p, dpi = 100, units = "in", height = 4, width = 10)
   }
 }
 
