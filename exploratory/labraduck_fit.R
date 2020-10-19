@@ -229,7 +229,7 @@ fit_model <- function(data, use_covariates, var_scale = 1) {
   alr_means <- colMeans(alr_ys)
   M0 <- matrix(0, Q, D-1)
   M0[1,] <- alr_means
-  
+
   start <- Sys.time()
 
   # I'm giving W about 1/2 the scale of gamma
@@ -238,7 +238,7 @@ fit_model <- function(data, use_covariates, var_scale = 1) {
   #   In my mind, giving W a smaller scale than gamma is consistent with relatively more volatility
   #   presumed to result from interactions with the environment.
   fit <- labraduck(Y = Y, upsilon = upsilon, Xi = Xi, F = F, G = G, W = W, M0 = M0, C0 = C0,
-                   observations = data$days, gamma_scale = var_scale*(2/3), W_scale = var_scale*(1/3), apply_smoother=TRUE)
+                   observations = data$days, gamma_scale = (var_scale * 2/3), W_scale = (var_scale * 1/3), apply_smoother = TRUE)
   end <- Sys.time()
   return(list(fit = fit, runtime = end-start))
 }
@@ -286,4 +286,3 @@ if(use_covariates) {
     ggsave(file.path("DLM_output", "images", paste0(base_fn,"_Eta",covariate,".png")), p, dpi = 100, units = "in", height = 4, width = 10)
   }
 }
-
