@@ -20,10 +20,10 @@ if(length(options) >= 4) {
 }
 
 ## Note: for testing, ACA with observation indices 10:30 is good...
-# host <- "ACA"
-# begin_idx <- 10
-# end_idx <- 30
-# use_covariates <- TRUE
+host <- "ACA"
+begin_idx <- 10
+end_idx <- 30
+use_covariates <- FALSE
 
 ## Local
 setwd("C:/Users/kim/Documents/ROL")
@@ -166,7 +166,7 @@ slice_dataset <- function(data, begin_idx, end_idx) {
   return(data)
 }
 
-fit_model <- function(data, use_covariates) {
+fit_model <- function(data, use_covariates, var_scale = 1) {
   T <- max(data$days)
   # Build the pseudo-covariate matrix
   if(use_covariates) {
@@ -183,6 +183,9 @@ fit_model <- function(data, use_covariates) {
   Q <- nrow(F)
   D <- nrow(data$counts)
   W <- diag(Q)
+  # I think we want to scale W to have unit total variance just to make covariate-inclusive and -exclusive models similar
+  W <- W/nrow(W)
+  
   G <- diag(Q)
   
   Y <- data$counts
@@ -197,10 +200,10 @@ fit_model <- function(data, use_covariates) {
   alr_means <- colMeans(alr_ys)
   M0 <- matrix(0, Q, D-1)
   M0[1,] <- alr_means
-  
+
   start <- Sys.time()
   fit <- labraduck(Y = Y, upsilon = upsilon, Xi = Xi, F = F, G = G, W = W, M0 = M0, C0 = C0,
-                   observations = data$days, gamma_scale = 1, W_scale = 1, apply_smoother=TRUE)
+                   observations = data$days, gamma_scale = (var_scale * 2/3), W_scale = (var_scale * 1/3), apply_smoother = TRUE)
   end <- Sys.time()
   return(list(fit = fit, runtime = end-start))
 }
@@ -218,18 +221,23 @@ if(!use_covariates) {
 }
 base_fn <- paste0("fit_",tag,"_",host)
 
-fit <- fit_model(data, use_covariates = use_covariates)
-cat("Fit time:",fit$runtime,"sec\n")
+fit <- fit_model(data, use_covariates = use_covariates, var_scale = 1)
+# cat("Fit time:",fit$runtime,"sec\n")
 fit <- fit$fit
-saveRDS(fit, paste0(base_fn,".rds"))
+# saveRDS(fit, paste0(base_fn,".rds"))
+
+mean(diag(apply(fit$Sigma, c(1,2), mean)))
+image(cov2cor(apply(fit$Sigma, c(1,2), mean)))
 
 p <- plot_Eta(fit, 1)
-ggsave(paste0(base_fn,"_Theta.png"), p, dpi = 100, units = "in", height = 4, width = 12)
+p <- plot_Theta(fit, 1, 1)
+p
+# ggsave(paste0(base_fn,"_Theta.png"), p, dpi = 100, units = "in", height = 4, width = 12)
 
-if(use_covariates) {
-  for(covariate in 1:3) {
-    p <- plot_Theta(fit, 1, covariate)
-    ggsave(paste0(base_fn,"_Eta",covariate,".png"), p, dpi = 100, units = "in", height = 4, width = 10)
-  }
-}
+# if(use_covariates) {
+#   for(covariate in 1:3) {
+#     p <- plot_Theta(fit, 1, covariate)
+#     ggsave(paste0(base_fn,"_Eta",covariate,".png"), p, dpi = 100, units = "in", height = 4, width = 10)
+#   }
+# }
 
