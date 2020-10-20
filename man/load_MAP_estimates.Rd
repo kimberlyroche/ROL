@@ -4,10 +4,12 @@
 \alias{load_MAP_estimates}
 \title{Load MAP estimates of microbial covariances from fitted models at the desired taxonomic level}
 \usage{
-load_MAP_estimates(tax_level = "ASV", logratio = "alr")
+load_MAP_estimates(tax_level = "ASV", DLM = FALSE, logratio = "alr")
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
+
+\item{DLM}{if TRUE, looks for DLM model fits instead of GP model fits}
 
 \item{logratio}{logratio representation to use (e.g. "alr", "ilr", "clr")}
 }
@@ -18,5 +20,5 @@ list of MAP covariance estimates indexed by host short name
 Load MAP estimates of microbial covariances from fitted models at the desired taxonomic level
 }
 \examples{
-Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="alr")
+Sigmas <- load_MAP_estimates(tax_level = "ASV", logratio = "alr")
 }

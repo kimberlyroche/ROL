@@ -559,22 +559,34 @@ plot_ordination <- function(tax_level="ASV", which_measure="Sigma", annotation="
 #' 
 #' @param host host short name (e.g. ACA)
 #' @param tax_level taxonomic level at which to agglomerate data
+#' @param DLM if TRUE, looks for DLM model fits instead of GP model fits
+#' @param logratio logratio covariance to render (clr and alr currently supported)
 #' @param show_plot show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)
 #' @details Output are png files of covariance and correlation matrices.
 #' @return NULL
 #' @import ggplot2
+#' @import fido
 #' @import driver
 #' @export
 #' @examples
-#' plot_MAP_covariance(host="ZIZ", tax_level="ASV")
-plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
-  fit_filename <- file.path("output","model_fits",paste0(tax_level,"_MAP"),paste0(host,"_bassetfit.rds"))
+#' plot_MAP_covariance(host = "ZIZ", tax_level = "ASV")
+plot_MAP_covariance <- function(host, tax_level = "ASV", DLM = FALSE, logratio = "alr", show_plot = FALSE) {
+  if(DLM) {
+    fit_filename <- file.path("output","model_fits",paste0(tax_level,"_MAP"),paste0(host,"_labraduckfit.rds"))
+  } else {
+    fit_filename <- file.path("output","model_fits",paste0(tax_level,"_MAP"),paste0(host,"_bassetfit.rds"))
+  }
   if(!file.exists(fit_filename)) {
     stop(paste0("MAP model fit for host ",host," at taxonomic level ",tax_level," does not exist!\n"))
   }
   fit_obj <- read_file(fit_filename)
+  if(logratio == "clr") {
+    fit <- to_clr(fit_obj$fit)
+  } else {
+    fit <- fit_obj$fit
+  }
   # plot as covariance
-  df <- driver::gather_array(fit_obj$fit$Sigma[,,1], "value", "row", "col")
+  df <- driver::gather_array(fit$Sigma[,,1], "value", "row", "col")
   p <- ggplot(df, aes(row, col)) +
     geom_tile(aes(fill = value), colour = "white") +
     scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred") +
@@ -588,7 +600,7 @@ plot_MAP_covariance <- function(host, tax_level="ASV", show_plot=FALSE) {
   ggsave(file.path(save_dir,paste0(host,"_MAP_covariance.png")),
          plot=p, scale=1.5, width=5, height=4, units="in", dpi=150)
   # plot as correlation
-  df <- driver::gather_array(cov2cor(fit_obj$fit$Sigma[,,1]), "value", "row", "col")
+  df <- driver::gather_array(cov2cor(fit$Sigma[,,1]), "value", "row", "col")
   p <- ggplot(df, aes(row, col)) +
     geom_tile(aes(fill = value), colour = "white") +
     scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred") +
@@ -702,17 +714,5 @@ plot_posterior_predictive <- function(host, tax_level="ASV", predict_coords=NULL
            plot=p, scale=1.5, width=10, height=2, units="in", dpi=150)
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 

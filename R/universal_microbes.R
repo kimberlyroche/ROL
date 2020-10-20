@@ -1,15 +1,16 @@
 #' Load MAP estimates of microbial covariances from fitted models at the desired taxonomic level
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
+#' @param DLM if TRUE, looks for DLM model fits instead of GP model fits
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @return list of MAP covariance estimates indexed by host short name
 #' @import driver
 #' @import stray
 #' @export
 #' @examples
-#' Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="alr")
-load_MAP_estimates <- function(tax_level="ASV", logratio="alr") {
-  model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
+#' Sigmas <- load_MAP_estimates(tax_level = "ASV", logratio = "alr")
+load_MAP_estimates <- function(tax_level = "ASV", DLM = FALSE, logratio = "alr") {
+  model_list <- get_fitted_model_list(tax_level = tax_level, DLM = DLM, MAP = TRUE)
   Sigmas <- list()
   for(i in 1:length(model_list$hosts)) {
     host <- model_list$hosts[i]
@@ -49,36 +50,6 @@ load_full_posteriors <- function(tax_level="ASV", logratio="alr") {
     if(logratio == "ilr") {
       fit <- to_ilr(fit)
     }
-    Sigmas[[host]] <- fit$Sigma
-  }
-  return(Sigmas)
-}
-
-#' Load full posterior estimates of microbial covariances from GMDLM model output
-#' 
-#' @return list of full posterior covariance estimates (CLR, family-level only) indexed by host short name
-#' @import driver
-#' @import stray
-#' @import stringr
-#' @export
-#' @examples
-#' Sigmas <- load_full_posteriors_DLM()
-load_full_posteriors_DLM <- function() {
-  # all fitted models have this suffix
-  pattern <- "^Sigmas_cov_([[:alpha:]]+)\\.rds"
-  output_dir <- file.path("output", "model_fits_DLM_family")
-  fitted_Sigmas <- list.files(path = output_dir, pattern = pattern)
-
-  # pull out some useful summary information: a list of fitted hosts, models, and dimensions
-  hosts <- unname(sapply(fitted_Sigmas, function(x) {
-    str_match(x, pattern)[1,2]
-  }))
-
-  Sigmas <- list()
-  for(i in 1:length(model_list$hosts)) {
-    host <- hosts[i]
-    cat("Processing",host,"\n")
-    Sigmas <- readRDS(file.path(output_dir, paste0("Sigmas_cov_",host,".rds")))
     Sigmas[[host]] <- fit$Sigma
   }
   return(Sigmas)

@@ -4,8 +4,11 @@
 \alias{get_universal_interactions}
 \title{Identify and plot "universal" interactions at the designated taxonomic level}
 \usage{
-get_universal_interactions(tax_level = "ASV", show_plot = FALSE,
-  order_by = "abundance")
+get_universal_interactions(
+  tax_level = "ASV",
+  show_plot = FALSE,
+  order_by = "abundance"
+)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

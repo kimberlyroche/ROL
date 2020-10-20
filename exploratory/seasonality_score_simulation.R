@@ -70,10 +70,11 @@ score <- function(y1, y2, labels) {
 ##   Correlated series y, y.corr, anti-correlated series y.acorr, and uncorrelated series y.uncorr
 ## -----------------------------------------------------------------------------------------------------------------------------
 
+noise_factor <- 1
 x <- seq(from = 0, to = 10*pi, length.out = 1000)
-y <- sin(x) + rnorm(1000)*0.5
-y.corr <- sin(x) + rnorm(1000)*0.5
-y.acorr <- sin(-x) + rnorm(1000)*0.5
+y <- sin(x) + rnorm(1000)*noise_factor
+y.corr <- sin(x) + rnorm(1000)*noise_factor
+y.acorr <- sin(-x) + rnorm(1000)*noise_factor
 y.uncorr <- rnorm(1000)*0.5
 labels <- as.factor(sin(x) > 0)
 levels(labels) <- c("wet", "dry")
@@ -95,6 +96,6 @@ score(y, y.acorr, labels)
 plot_series(x, y, y.acorr)
 
 score(y, y.uncorr, labels)
-plot_series(x, y, y.acorr)
+plot_series(x, y, y.uncorr)
 
 

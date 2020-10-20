@@ -4,12 +4,22 @@
 \alias{plot_MAP_covariance}
 \title{Plot MAP covariance matrix for designated host}
 \usage{
-plot_MAP_covariance(host, tax_level = "ASV", show_plot = FALSE)
+plot_MAP_covariance(
+  host,
+  tax_level = "ASV",
+  DLM = FALSE,
+  logratio = "alr",
+  show_plot = FALSE
+)
 }
 \arguments{
 \item{host}{host short name (e.g. ACA)}
 
 \item{tax_level}{taxonomic level at which to agglomerate data}
+
+\item{DLM}{if TRUE, looks for DLM model fits instead of GP model fits}
+
+\item{logratio}{logratio covariance to render (clr and alr currently supported)}
 
 \item{show_plot}{show() plot of first 2 principle coordinates (in addition to rendering first 4 PCoA to files)}
 }
@@ -20,5 +30,5 @@ Plot MAP covariance matrix for designated host
 Output are png files of covariance and correlation matrices.
 }
 \examples{
-plot_MAP_covariance(host="ZIZ", tax_level="ASV")
+plot_MAP_covariance(host = "ZIZ", tax_level = "ASV")
 }

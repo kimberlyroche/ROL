@@ -33,52 +33,41 @@ fix_MAP_dims <- function(fit) {
 #' Pulls a list of fitted basset models from the designated output directory
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
+#' @param DLM if TRUE, looks for DLM model fits instead of GP model fits
 #' @param MAP use MAP estimate model output instead of full posterior output
-#' @param DLM pull GMDLM model output instead
 #' @return NULL
 #' @export
 #' @examples
-#' model_list <- get_fitted_model_list(tax_level="ASV", MAP=FALSE, DLM=TRUE)
-get_fitted_model_list <- function(tax_level = "ASV", MAP = FALSE, DLM = FALSE) {
+#' model_list <- get_fitted_model_list(tax_level = "ASV", DLM = TRUE, MAP = FALSE)
+get_fitted_model_list <- function(tax_level = "ASV", DLM = FALSE, MAP = FALSE) {
   if(DLM) {
-    pattern <- "^Sigmas_cov_([[:alpha:]]+)\\.rds"
-    output_dir <- file.path("output", paste0("model_fits_DLM_", tax_level))
-    fitted_Sigmas <- list.files(path = output_dir, pattern = pattern)
-    # pull out some useful summary information: a list of fitted hosts, models, and dimensions
-    hosts <- unname(sapply(fitted_Sigmas, function(x) {
-      str_match(x, pattern)[1,2]
-    }))
-    fit <- readRDS(file.path(output_dir, fitted_Sigmas[1]))
-    return(list(hosts = hosts,
-                model_list = fitted_Sigmas,
-                D = dim(fit)[1],
-                n_samples = dim(fit)[3]))
+    pattern_str <- "*_labraduckfit.rds"
+    regexpr_str <- "_labraduckfit.rds"
   } else {
     pattern_str <- "*_bassetfit.rds"
     regexpr_str <- "_bassetfit.rds"
-    if(MAP) {
-      level_dir <- file.path("output","model_fits",paste0(tax_level,"_MAP"))
-    } else {
-      level_dir <- file.path("output","model_fits",tax_level)
-    }
-    fitted_models <- list.files(path=level_dir, pattern=pattern_str, full.names=TRUE, recursive=FALSE)
-    # pull out some useful summary information: a list of fitted hosts, models, and dimensions  
-    hosts <- as.vector(sapply(fitted_models, function(x) { idx <- regexpr(regexpr_str, x); return(substr(x, idx-3, idx-1)) } ))
-    if(MAP) {
-      path <- file.path("output","model_fits",paste0(tax_level,"_MAP/",hosts[1],regexpr_str))
-    } else {
-      path <- file.path("output","model_fits",paste0(tax_level,"/",hosts[1],regexpr_str))
-    }
-    fit <- read_file(path)
-    return(list(hosts=hosts,
-                pattern_str=pattern_str,
-                regexpr_str=regexpr_str,
-                model_list=fitted_models,
-                D=fit$fit$D,
-                n_samples=fit$fit$iter))
   }
+  if(MAP) {
+    level_dir <- file.path("output","model_fits",paste0(tax_level,"_MAP"))
+  } else {
+    level_dir <- file.path("output","model_fits",tax_level)
+  }
+  fitted_models <- list.files(path=level_dir, pattern=pattern_str, full.names=TRUE, recursive=FALSE)
+  # pull out some useful summary information: a list of fitted hosts, models, and dimensions  
+  hosts <- as.vector(sapply(fitted_models, function(x) { idx <- regexpr(regexpr_str, x); return(substr(x, idx-3, idx-1)) } ))
+  if(MAP) {
+    path <- file.path("output","model_fits",paste0(tax_level,"_MAP/",hosts[1],regexpr_str))
+  } else {
+    path <- file.path("output","model_fits",paste0(tax_level,"/",hosts[1],regexpr_str))
+  }
+  fit <- read_file(path)
+  return(list(hosts=hosts,
+              pattern_str=pattern_str,
+              regexpr_str=regexpr_str,
+              model_list=fitted_models,
+              D=fit$fit$D,
+              n_samples=fit$fit$iter))
 }
-model_list <- get_fitted_model_list(tax_level="family", MAP=FALSE, DLM=TRUE)
 
 #' Set up a basic ALR prior
 #' 
@@ -211,7 +200,7 @@ calc_se_decay <- function(min_correlation = 0.1, days_to_baseline = 90) {
 #' @details Composite kernel is built from (1) squared exponential kernel (base autocorrelation component),
 #' (2) seasonal kernel (periodic), and (3) diet and climate component (another squared exponential)
 #' @return list containing kernel function and bandwidth parameter
-#' @import stray
+#' @import fido
 #' @export
 get_Gamma <- function(kernel_scale, proportions, min_correlation = 0.1, days_to_baseline = 90) {
   rho <- calc_se_decay(min_correlation = min_correlation, days_to_baseline = days_to_baseline)
@@ -277,7 +266,7 @@ fold_error <- function(y1, y2, pc = 0.5) {
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
 #' @import phyloseq
-#' @import stray
+#' @import fido
 #' @export
 #' @examples
 #' tax_level <- "ASV"
@@ -288,12 +277,12 @@ fold_error <- function(y1, y2, pc = 0.5) {
 #' fit_GP(data, host = "GAB", taxa_covariance = taxa_covariance, sample_covariance = sample_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
 fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE, holdout_proportion = 0, return_model = FALSE, scramble = FALSE) {
   if(MAP) {
-    cat(paste0("Fitting stray::basset model (MAP) to host ",host,"\n"))
+    cat(paste0("Fitting fido::basset model (MAP) to host ",host,"\n"))
     if(holdout_proportion > 0) {
       stop("Leave-one-out predictions only work for full posterior estimates (currently).\n")
     }
   } else {
-    cat(paste0("Fitting stray::basset model to host ",host,"\n"))
+    cat(paste0("Fitting fido::basset model to host ",host,"\n"))
   }
   
   # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
@@ -329,7 +318,7 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
     }
   }
   
-  # stray uses the D^th element as the ALR reference by default
+  # fido uses the D^th element as the ALR reference by default
   # if we'd like to use a different reference, do some row shuffling in Y to put the reference at the end
   if(!is.null(alr_ref)) {
     Y <- Y[c(setdiff(1:D,alr_ref),alr_ref),]
@@ -356,13 +345,13 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
   if(MAP) {
     n_samples <- 0
   }
-  fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, sample_covariance$Gamma, taxa_covariance$Xi,
+  fit <- fido::basset(Y, X, taxa_covariance$upsilon, Theta, sample_covariance$Gamma, taxa_covariance$Xi,
                        n_samples = n_samples, ret_mean = MAP, 
                        b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                        max_iter = 10000L, optim_method = "adam")
 
   if(MAP) {
-    # fill out dimensions; some function (including stray predictive functions) expect arrays
+    # fill out dimensions; some function (including fido predictive functions) expect arrays
     # not matrices here
     fit <- fix_MAP_dims(fit)
   }
@@ -405,6 +394,114 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
     save_dir <- check_output_dir(c("output","model_fits",tax_level))
   }
   saveRDS(fit_obj, file.path(save_dir,paste0(host,"_bassetfit.rds")))
+}
+
+#' Fit a dynamic linear model to a single host series using labraduck
+#' 
+#' @param data a phyloseq object
+#' @param host host short name (e.g. ACA)
+#' @param taxa_covariance list of prior covariance parameters over taxa
+#' @param var_scale combined scale of the total variance components Sigma and Gamma (default 1)
+#' @param tax_level taxonomic level at which to agglomerate data
+#' @param alr_ref index of reference ALR coordinate
+#' @param n_samples number of posterior samples to draw
+#' @param MAP compute MAP estimate only (as single posterior sample)
+#' @details Fitted model and metadata saved to designated model output directory.
+#' @return NULL
+#' @import phyloseq
+#' @import fido
+#' @export
+#' @examples
+#' tax_level <- "ASV"
+#' data <- load_data(tax_level = tax_level)
+#' params <- formalize_parameters(data)
+#' taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
+#' fit_DLM(data, host = "GAB", taxa_covariance = taxa_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
+fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE) {
+  if(MAP) {
+    cat(paste0("Fitting fido::labraduck model (MAP) to host ",host,"\n"))
+  } else {
+    cat(paste0("Fitting fido::labraduck model to host ",host,"\n"))
+  }
+  
+  # global assign is a hack seemingly necessary for this phyloseq::subset_samples function call
+  host <<- host
+  host_data <- subset_samples(data, sname == host)
+  
+  # encode observations as differences from baseline in units of days
+  host_metadata <- sample_data(host_data)
+
+  # read diet and climate covariate data
+  data.diet <- readRDS("input/ps_w_covs.RDS")
+  data.name_mapping <- read.csv("input/host_subject_id_to_sname_key.csv")
+  data.name_mapping <- unique(data.name_mapping[,c("sname","host_subject_id2")])
+  host.num <<- as.character(data.name_mapping[data.name_mapping$sname == host,]$host_subject_id2)
+  data.diet <- subset_samples(data.diet, host == host.num)
+  metadata.diet <- sample_data(data.diet)
+
+  days <- host_metadata$collection_date
+  day0 <- min(days)
+  days <- round(unname(sapply(days, function(x) difftime(x, day0, units = "days")))) + 1
+  
+  T <- max(days)
+  # Build the pseudo-covariate matrix
+  F <- matrix(0, 3, T)
+  F[1,] <- 1
+  for(i in 1:length(days)) {
+    # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
+    F[2,days[i]] <- as.vector(scale(metadata.diet$PC1))[i]
+    F[3,days[i]] <- as.vector(scale(metadata.diet$rain_monthly))[i]
+  }
+
+  # pull out the count table
+  Y <- t(otu_table(host_data)@.Data) # taxa x samples
+  # strip off sequence variant labels
+  colnames(Y) <- NULL
+  rownames(Y) <- NULL
+  
+  Q <- nrow(F)
+  D <- nrow(Y)
+  W <- diag(Q)
+  # scale covariate-inclusive and covariate-exclusive models to have similar total variance
+  W <- W/nrow(W)
+  G <- diag(Q)
+
+  # fido uses the D^th element as the ALR reference by default
+  # if we'd like to use a different reference, do some row shuffling in Y to put the reference at the end
+  if(!is.null(alr_ref)) {
+    Y <- Y[c(setdiff(1:D,alr_ref),alr_ref),]
+  }
+
+  # define the prior over baselines
+  C0 <- W
+  alr_ys <- driver::alr((t(Y) + 0.5))
+  alr_means <- colMeans(alr_ys)
+  M0 <- matrix(0, Q, D-1)
+  M0[1,] <- alr_means
+  
+  if(MAP) {
+    n_samples <- 0
+  }
+  
+  # I'm giving W about 1/2 the scale of gamma
+  # My thinking here is that in the gLV models we've been simulating from, we've seen that most of
+  #   the dynamism in the model results from /environmental interactions/, not innate volatility.
+  #   In my mind, giving W a smaller scale than gamma is consistent with relatively more volatility
+  #   presumed to result from interactions with the environment.
+  fit <- labraduck(Y = Y, upsilon = taxa_covariance$upsilon, Xi = taxa_covariance$Xi, F = F, G = G, W = W, M0 = M0, C0 = C0,
+                   observations = days, gamma_scale = (var_scale * 2/3), W_scale = (var_scale * 1/3), apply_smoother = MAP,
+                   n_samples = n_samples, ret_mean = MAP)
+
+  # pack up results
+  fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, fit = fit)
+
+  # save results
+  if(MAP) {
+    save_dir <- check_output_dir(c("output","model_fits",paste0(tax_level,"_MAP")))
+  } else {
+    save_dir <- check_output_dir(c("output","model_fits",tax_level))
+  }
+  saveRDS(fit_obj, file.path(save_dir,paste0(host,"_labraduckfit.rds")))
 }
 
 #' Perform k-fold cross-validation for a given host and kernel configuration choice

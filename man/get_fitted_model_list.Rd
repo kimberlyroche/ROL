@@ -4,10 +4,12 @@
 \alias{get_fitted_model_list}
 \title{Pulls a list of fitted basset models from the designated output directory}
 \usage{
-get_fitted_model_list(tax_level = "ASV", MAP = FALSE)
+get_fitted_model_list(tax_level = "ASV", DLM = FALSE, MAP = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
+
+\item{DLM}{if TRUE, looks for DLM model fits instead of GP model fits}
 
 \item{MAP}{use MAP estimate model output instead of full posterior output}
 }
@@ -15,5 +17,5 @@ get_fitted_model_list(tax_level = "ASV", MAP = FALSE)
 Pulls a list of fitted basset models from the designated output directory
 }
 \examples{
-model_list <- get_fitted_model_list(tax_level="ASV", MAP=FALSE)
+model_list <- get_fitted_model_list(tax_level = "ASV", DLM = TRUE, MAP = FALSE)
 }
