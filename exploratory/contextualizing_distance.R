@@ -4,7 +4,7 @@ library(dplyr)
 library(ggplot2)
 library(abind)
 library(matrixsampling)
-library(stray)
+library(fido)
 library(driver)
 library(lubridate)
 library(stringr)
@@ -40,7 +40,7 @@ fit_model <- function(counts, host_columns, host_dates, depth = 1) {
       subject_counts <- counts[,subject_samples] # omitting taxonomy
       # later: we probably want to this about removing taxa that are very rare within any individual
       
-      # fit this with stray::basset
+      # fit this with fido::basset
       Y <- as.matrix(subject_counts)
       X <- matrix(subject_dates, 1, length(subject_dates))
       
@@ -64,7 +64,7 @@ fit_model <- function(counts, host_columns, host_dates, depth = 1) {
       }
       
       # full data set
-      fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
+      fit <- fido::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
                            n_samples = n_samples, ret_mean = ret_mean,
                            b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                            max_iter = 10000L, optim_method = "adam")
@@ -85,7 +85,7 @@ fit_model <- function(counts, host_columns, host_dates, depth = 1) {
 
 # TO DO: general purpose fit visualization function
 # visualize the last fitted model for plausibility
-# fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
+# fit <- fido::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
 #                     n_samples = 500, ret_mean = FALSE)
 # #                     max_iter = 10000L, optim_method = "adam")
 # Eta <- predict(fit, min(subject_dates):max(subject_dates), response = "Eta", iter = fit$iter)

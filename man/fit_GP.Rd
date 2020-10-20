@@ -4,19 +4,9 @@
 \alias{fit_GP}
 \title{Fit a Gaussian process to a single host series using basset}
 \usage{
-fit_GP(
-  data,
-  host,
-  taxa_covariance,
-  sample_covariance,
-  tax_level = "ASV",
-  alr_ref = NULL,
-  n_samples = 100,
-  MAP = FALSE,
-  holdout_proportion = 0,
-  return_model = FALSE,
-  scramble = FALSE
-)
+fit_GP(data, host, taxa_covariance, sample_covariance, tax_level = "ASV",
+  alr_ref = NULL, n_samples = 100, MAP = FALSE,
+  holdout_proportion = 0, return_model = FALSE, scramble = FALSE)
 }
 \arguments{
 \item{data}{a phyloseq object}

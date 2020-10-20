@@ -1,6 +1,6 @@
 library(tidyverse)
 library(phyloseq)
-library(stray)
+library(fido)
 library(ROL)
 #library(pracma) # for pchip()
 library(driver)
@@ -176,15 +176,15 @@ alr_means <- colMeans(alr_ys)
 Theta <- function(X) matrix(alr_means, D-1, ncol(X))
 
 # MAP fits
-# fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 0, ret_mean = TRUE)
-# fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 0, ret_mean = TRUE)
+# fit.basic <- fido::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 0, ret_mean = TRUE)
+# fit.extra <- fido::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 0, ret_mean = TRUE)
 basic.save_file <- paste0(host,"_fit_basic.rds")
 if(file.exists(basic.save_file)) {
   cat("\tLoading basic model...\n")
   fit.basic <- readRDS(basic.save_file)
 } else {
   cat("\tFitting basic model...\n")
-  fit.basic <- stray::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 100,
+  fit.basic <- fido::basset(Y, X.basic, upsilon, Theta, Gamma.basic, Xi, n_samples = 100,
                              b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                              max_iter = 10000L, optim_method = "adam")
   saveRDS(fit.basic, file = basic.save_file)
@@ -199,7 +199,7 @@ if(file.exists(extra.save_file)) {
   fit.extra <- readRDS(extra.save_file)
 } else {
   cat("\tFitting extra model...\n")
-  fit.extra <- stray::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 100,
+  fit.extra <- fido::basset(Y, X.extra, upsilon, Theta, Gamma.extra, Xi, n_samples = 100,
                              b2 = 0.98, step_size = 0.004, eps_f = 1e-11, eps_g = 1e-05,
                              max_iter = 10000L, optim_method = "adam")
   saveRDS(fit.extra, file = extra.save_file)

@@ -10,7 +10,7 @@ library(LaplacesDemon)
 library(driver)
 library(matrixsampling)
 library(emdist)
-library(stray)
+library(fido)
 
 calc_xy <- function(vSigmas) {
   if(is.null(dim(vSigmas))) {
@@ -347,7 +347,7 @@ get_synthetic_data <- function(counts) {
   synthetic_Sigmas <- matrix(NA, H, (D^2/2) - D/2)
   for(h in 1:H) {
     cat("Fitting model for host",h,"\n")
-    # fit this with stray::basset
+    # fit this with fido::basset
     Y <- counts[,,h]
     X <- matrix(1:N_h, 1, N_h)
     
@@ -368,7 +368,7 @@ get_synthetic_data <- function(counts) {
     ret_mean <- FALSE
     
     # full data set
-    fit <- stray::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
+    fit <- fido::basset(Y, X, taxa_covariance$upsilon, Theta, Gamma, taxa_covariance$Xi,
                          n_samples = n_samples, ret_mean = ret_mean)
     
     fit.clr <- to_clr(fit)

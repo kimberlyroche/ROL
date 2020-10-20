@@ -1,7 +1,7 @@
 library(ROL)
 library(matrixsampling)
 library(driver)
-library(stray)
+library(fido)
 library(ggplot2)
 library(RColorBrewer)
 library(vegan)

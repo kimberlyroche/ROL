@@ -1,7 +1,7 @@
 # boilerplate
 library(tidyverse)
 library(phyloseq)
-library(stray)
+library(fido)
 library(ROL)
 library(driver)
 library(matrixsampling)

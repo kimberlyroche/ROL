@@ -4,15 +4,9 @@
 \alias{plot_interaction_heatmap}
 \title{Plot heatmap over all pairwise (MAP) correlations between microbes at designated taxonomic level}
 \usage{
-plot_interaction_heatmap(
-  tax_level = "ASV",
-  logratio = "alr",
-  Sigmas = NULL,
-  cluster = TRUE,
-  taxon_idx = NULL,
-  show_plot = FALSE,
-  return_matrix = FALSE
-)
+plot_interaction_heatmap(tax_level = "ASV", logratio = "alr",
+  Sigmas = NULL, cluster = TRUE, taxon_idx = NULL,
+  show_plot = FALSE, return_matrix = FALSE)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

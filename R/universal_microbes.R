@@ -5,7 +5,7 @@
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @return list of MAP covariance estimates indexed by host short name
 #' @import driver
-#' @import stray
+#' @import fido
 #' @export
 #' @examples
 #' Sigmas <- load_MAP_estimates(tax_level = "ASV", logratio = "alr")
@@ -33,7 +33,7 @@ load_MAP_estimates <- function(tax_level = "ASV", DLM = FALSE, logratio = "alr")
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @return list of full posterior covariance estimates indexed by host short name
 #' @import driver
-#' @import stray
+#' @import fido
 #' @export
 #' @examples
 #' Sigmas <- load_full_posteriors(tax_level="ASV", logratio="alr")

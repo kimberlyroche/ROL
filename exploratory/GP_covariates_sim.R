@@ -4,7 +4,7 @@ rm(list = ls())
 
 setwd("C:/Users/kim/Documents/ROL/exploratory")
 
-library(stray)
+library(fido)
 library(dplyr)
 library(matrixsampling)
 library(driver)
@@ -155,7 +155,7 @@ fit_mixed_kernels.1 <- function(data, alpha, period, Gamma_scale = 1) {
     var.PER <- Gamma_scale*alpha
     SE(X, sigma = sqrt(var.SE), rho = SE_rho, jitter = jitter) + PER(X, sigma = sqrt(var.PER), rho = 1, period = period, jitter = jitter)
   }
-  fit <- stray::basset(Y, X, upsilon, Theta.infer, Gamma.infer, Xi)
+  fit <- fido::basset(Y, X, upsilon, Theta.infer, Gamma.infer, Xi)
   return(list(Eta = apply(fit$Eta, c(1,2), mean), Lambda = apply(fit$Lambda, c(1,2), mean),
               Sigma = apply(fit$Sigma, c(1,2), mean), Theta = Theta.infer(X), Gamma = Gamma.infer(X)))
 }
@@ -266,7 +266,7 @@ fit_mixed_kernels.2 <- function(data, alpha, period, Gamma_scale = 1, binary_eff
     var.fixed <- Gamma_scale*alpha
     SE(X[1,,drop=F], sigma = sqrt(var.SE), rho = SE_rho, jitter = jitter) + var.fixed*fixed_kernel
   }
-  fit <- stray::basset(Y, X, upsilon, Theta.infer, Gamma.infer, Xi)
+  fit <- fido::basset(Y, X, upsilon, Theta.infer, Gamma.infer, Xi)
   return(list(Eta = apply(fit$Eta, c(1,2), mean), Lambda = apply(fit$Lambda, c(1,2), mean),
               Sigma = apply(fit$Sigma, c(1,2), mean), Theta = Theta.infer(X), Gamma = Gamma.infer(X)))
 }
@@ -379,7 +379,7 @@ fit_mixed_kernels.3 <- function(data, alpha, Gamma_scale = 1, binary_effect = 0)
     var.fixed <- Gamma_scale*alpha
     SE(X[1,,drop=F], sigma = sqrt(var.SE), rho = SE_rho, jitter = jitter) + var.fixed*fixed_kernel
   }
-  fit <- stray::basset(Y, X, upsilon, Theta.infer, Gamma.infer, Xi)
+  fit <- fido::basset(Y, X, upsilon, Theta.infer, Gamma.infer, Xi)
   return(list(Eta = apply(fit$Eta, c(1,2), mean), Lambda = apply(fit$Lambda, c(1,2), mean),
               Sigma = apply(fit$Sigma, c(1,2), mean), Theta = Theta.infer(X), Gamma = Gamma.infer(X)))
 }

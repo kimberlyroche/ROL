@@ -9,7 +9,7 @@
 #' a list containing distance matrix and labels of each row or column (by host).
 #' @return NULL
 #' @import driver
-#' @import stray
+#' @import fido
 #' @import matrixsampling
 #' @export
 #' @examples
@@ -124,7 +124,7 @@ calc_posterior_distances <- function(tax_level="ASV", which_measure="Sigma",
 #' @details Output is saved to a file.
 #' @return NULL
 #' @import driver
-#' @import stray
+#' @import fido
 #' @export
 #' @examples
 #' calc_posterior_distances_row(tax_level="ASV", sample_idx=1)

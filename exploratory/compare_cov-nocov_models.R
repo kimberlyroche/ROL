@@ -2,7 +2,7 @@
 # Assumes no-covariate MAP fits are in the directory: output/model_fits_nocovariates/ASV_MAP
 # Assumes covariate-inclusive MAP fits are in the directory: output/model_fits/ASV_MAP
 
-library(stray)
+library(fido)
 library(ROL)
 library(phyloseq)
 library(dplyr)

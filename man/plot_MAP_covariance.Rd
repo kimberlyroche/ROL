@@ -4,13 +4,8 @@
 \alias{plot_MAP_covariance}
 \title{Plot MAP covariance matrix for designated host}
 \usage{
-plot_MAP_covariance(
-  host,
-  tax_level = "ASV",
-  DLM = FALSE,
-  logratio = "alr",
-  show_plot = FALSE
-)
+plot_MAP_covariance(host, tax_level = "ASV", DLM = FALSE,
+  logratio = "alr", show_plot = FALSE)
 }
 \arguments{
 \item{host}{host short name (e.g. ACA)}
