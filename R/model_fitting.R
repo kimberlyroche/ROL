@@ -34,36 +34,51 @@ fix_MAP_dims <- function(fit) {
 #' 
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param MAP use MAP estimate model output instead of full posterior output
+#' @param DLM pull GMDLM model output instead
 #' @return NULL
 #' @export
 #' @examples
-#' model_list <- get_fitted_model_list(tax_level="ASV", MAP=FALSE)
-get_fitted_model_list <- function(tax_level="ASV", MAP=FALSE) {
-  # all fitted models have this suffix
-  pattern_str <- "*_bassetfit.rds"
-  regexpr_str <- "_bassetfit.rds"
-  if(MAP) {
-    level_dir <- file.path("output","model_fits",paste0(tax_level,"_MAP"))
+#' model_list <- get_fitted_model_list(tax_level="ASV", MAP=FALSE, DLM=TRUE)
+get_fitted_model_list <- function(tax_level = "ASV", MAP = FALSE, DLM = FALSE) {
+  if(DLM) {
+    pattern <- "^Sigmas_cov_([[:alpha:]]+)\\.rds"
+    output_dir <- file.path("output", paste0("model_fits_DLM_", tax_level))
+    fitted_Sigmas <- list.files(path = output_dir, pattern = pattern)
+    # pull out some useful summary information: a list of fitted hosts, models, and dimensions
+    hosts <- unname(sapply(fitted_Sigmas, function(x) {
+      str_match(x, pattern)[1,2]
+    }))
+    fit <- readRDS(file.path(output_dir, fitted_Sigmas[1]))
+    return(list(hosts = hosts,
+                model_list = fitted_Sigmas,
+                D = dim(fit)[1],
+                n_samples = dim(fit)[3]))
   } else {
-    level_dir <- file.path("output","model_fits",tax_level)
+    pattern_str <- "*_bassetfit.rds"
+    regexpr_str <- "_bassetfit.rds"
+    if(MAP) {
+      level_dir <- file.path("output","model_fits",paste0(tax_level,"_MAP"))
+    } else {
+      level_dir <- file.path("output","model_fits",tax_level)
+    }
+    fitted_models <- list.files(path=level_dir, pattern=pattern_str, full.names=TRUE, recursive=FALSE)
+    # pull out some useful summary information: a list of fitted hosts, models, and dimensions  
+    hosts <- as.vector(sapply(fitted_models, function(x) { idx <- regexpr(regexpr_str, x); return(substr(x, idx-3, idx-1)) } ))
+    if(MAP) {
+      path <- file.path("output","model_fits",paste0(tax_level,"_MAP/",hosts[1],regexpr_str))
+    } else {
+      path <- file.path("output","model_fits",paste0(tax_level,"/",hosts[1],regexpr_str))
+    }
+    fit <- read_file(path)
+    return(list(hosts=hosts,
+                pattern_str=pattern_str,
+                regexpr_str=regexpr_str,
+                model_list=fitted_models,
+                D=fit$fit$D,
+                n_samples=fit$fit$iter))
   }
-  fitted_models <- list.files(path=level_dir, pattern=pattern_str, full.names=TRUE, recursive=FALSE)
-
-  # pull out some useful summary information: a list of fitted hosts, models, and dimensions  
-  hosts <- as.vector(sapply(fitted_models, function(x) { idx <- regexpr(regexpr_str, x); return(substr(x, idx-3, idx-1)) } ))
-  if(MAP) {
-    path <- file.path("output","model_fits",paste0(tax_level,"_MAP/",hosts[1],regexpr_str))
-  } else {
-    path <- file.path("output","model_fits",paste0(tax_level,"/",hosts[1],regexpr_str))
-  }
-  fit <- read_file(path)
-  return(list(hosts=hosts,
-              pattern_str=pattern_str,
-              regexpr_str=regexpr_str,
-              model_list=fitted_models,
-              D=fit$fit$D,
-              n_samples=fit$fit$iter))
 }
+model_list <- get_fitted_model_list(tax_level="family", MAP=FALSE, DLM=TRUE)
 
 #' Set up a basic ALR prior
 #' 
