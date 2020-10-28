@@ -11,7 +11,9 @@ option_list = list(
   make_option(c("--MAP"), type = "logical", default = FALSE,
               help = "use MAP fit (point estimate)", metavar = "logical"),
   make_option(c("--DLM"), type = "logical", default = FALSE,
-              help = "use DLM", metavar = "logical")
+              help = "use DLM", metavar = "logical"),
+  make_option(c("--cov"), type = "logical", default = TRUE,
+              help = "use covariates", metavar = "logical")
   # make_option(c("--scramble"), type = "logical", default = FALSE,
   #             help = "scramble taxa and time points to simulate null", metavar = "logical")
 );
@@ -28,7 +30,7 @@ params <- formalize_parameters(data)
 
 if(opt$DLM) {
   taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
-  fit_DLM(data, host = opt$host, taxa_covariance, var_scale = 1, tax_level = opt$tax_level, alr_ref = params$alr_ref, MAP = opt$MAP)
+  fit_DLM(data, host = opt$host, taxa_covariance, var_scale = 1, tax_level = opt$tax_level, alr_ref = params$alr_ref, MAP = opt$MAP, use_covariates = opt$cov)
 } else {
   # use GP
   sample_covariance <- get_Gamma(kernel_scale = 2, proportions = c(1/3, 1/3, 1/3), min_correlation = 0.1, days_to_baseline = 90)

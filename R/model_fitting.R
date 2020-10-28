@@ -407,6 +407,7 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
 #' @param n_samples number of posterior samples to draw
 #' @param MAP compute MAP estimate only (as single posterior sample)
 #' @param use_covariates if TRUE uses available rain, temperature, and diet data as covariates in the model
+#' @param split_diet if TRUE, splits diet PC1 into positive and negative subsets to treat as two 'environments'
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
 #' @import phyloseq
@@ -419,7 +420,7 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
 #' taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
 #' fit_DLM(data, host = "GAB", taxa_covariance = taxa_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
 fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV", alr_ref = NULL,
-                    n_samples = 100, MAP = FALSE, use_covariates = TRUE) {
+                    n_samples = 100, MAP = FALSE, use_covariates = TRUE, split_diet = FALSE) {
   if(MAP) {
     cat(paste0("Fitting fido::labraduck model (MAP) to host ",host,"\n"))
   } else {
@@ -441,6 +442,16 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
   data.diet <- subset_samples(data.diet, host == host.num)
   metadata.diet <- sample_data(data.diet)
 
+  if(split_diet) {
+    use_covariates = FALSE
+    env_idx1 <- which(metadata.diet$diet_PC1 < 0)
+    env_idx2 <- which(metadata.diet$diet_PC1 >= 0)
+    env_idxs <- list(env_idx1, env_idx2)
+  } else {
+    env_idxs <- list(1:length(metadata$diet_PC1))
+  }
+
+  fits <- list()
   days <- host_metadata$collection_date
   day0 <- min(days)
   days <- round(unname(sapply(days, function(x) difftime(x, day0, units = "days")))) + 1
@@ -452,7 +463,7 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
     F[1,] <- 1
     for(i in 1:length(days)) {
       # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
-      F[2,days[i]] <- as.vector(scale(metadata.diet$rain_monthly))[i]
+      F[2,days[i]] <- as.vector(scale(log(metadata.diet$rain_monthly + 0.1)))[i]
       F[3,days[i]] <- as.vector(scale(metadata.diet$tempmax_monthly))[i]
       F[4,days[i]] <- as.vector(scale(metadata.diet$diet_PC1))[i]
       F[5,days[i]] <- as.vector(scale(metadata.diet$diet_PC2))[i]
@@ -463,11 +474,13 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
     }
     
     # Some covariates as NA; impute these with the mean (zero for these scaled vars)
-    na_fill <- which(is.na(F), arr.ind = T)
-    for(na_idx in 1:nrow(na_fill)) {
-      i <- na_fill[na_idx,1]
-      j <- na_fill[na_idx,2]
-      F[i,j] <- 0
+    if(sum(is.na(F)) > 0) {
+      na_fill <- which(is.na(F), arr.ind = T)
+      for(na_idx in 1:nrow(na_fill)) {
+        i <- na_fill[na_idx,1]
+        j <- na_fill[na_idx,2]
+        F[i,j] <- 0
+      }
     }
   } else {
     F <- matrix(1, 1, T)
