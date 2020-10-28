@@ -452,89 +452,97 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
   }
 
   fits <- list()
-  days <- host_metadata$collection_date
-  day0 <- min(days)
-  days <- round(unname(sapply(days, function(x) difftime(x, day0, units = "days")))) + 1
-  
-  T <- max(days)
-  # Build the pseudo-covariate matrix
-  if(use_covariates) {
-    F <- matrix(0, 9, T)
-    F[1,] <- 1
-    for(i in 1:length(days)) {
-      # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
-      F[2,days[i]] <- as.vector(scale(log(metadata.diet$rain_monthly + 0.1)))[i]
-      F[3,days[i]] <- as.vector(scale(metadata.diet$tempmax_monthly))[i]
-      F[4,days[i]] <- as.vector(scale(metadata.diet$diet_PC1))[i]
-      F[5,days[i]] <- as.vector(scale(metadata.diet$diet_PC2))[i]
-      F[6,days[i]] <- as.vector(scale(metadata.diet$diet_PC3))[i]
-      F[7,days[i]] <- as.vector(scale(metadata.diet$diet_PC4))[i]
-      F[8,days[i]] <- as.vector(scale(metadata.diet$diet_PC5))[i]
-      F[9,days[i]] <- as.vector(scale(metadata.diet$diet_PC6))[i]
+  for(idx_it in 1:length(env_idxs)) {
+    idx <- env_idxs[[idx_it]]
+    days <- host_metadata$collection_date[idx]
+    day0 <- min(days)
+    days <- round(unname(sapply(days, function(x) difftime(x, day0, units = "days")))) + 1
+    
+    T <- max(days)
+    # Build the pseudo-covariate matrix
+    if(use_covariates) {
+      F <- matrix(0, 9, T)
+      F[1,] <- 1
+      for(i in 1:length(days)) {
+        # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
+        F[2,days[i]] <- as.vector(scale(log(metadata.diet$rain_monthly + 0.1)))[i]
+        F[3,days[i]] <- as.vector(scale(metadata.diet$tempmax_monthly))[i]
+        F[4,days[i]] <- as.vector(scale(metadata.diet$diet_PC1))[i]
+        F[5,days[i]] <- as.vector(scale(metadata.diet$diet_PC2))[i]
+        F[6,days[i]] <- as.vector(scale(metadata.diet$diet_PC3))[i]
+        F[7,days[i]] <- as.vector(scale(metadata.diet$diet_PC4))[i]
+        F[8,days[i]] <- as.vector(scale(metadata.diet$diet_PC5))[i]
+        F[9,days[i]] <- as.vector(scale(metadata.diet$diet_PC6))[i]
+      }
+      
+      # Some covariates as NA; impute these with the mean (zero for these scaled vars)
+      if(sum(is.na(F)) > 0) {
+        na_fill <- which(is.na(F), arr.ind = T)
+        for(na_idx in 1:nrow(na_fill)) {
+          i <- na_fill[na_idx,1]
+          j <- na_fill[na_idx,2]
+          F[i,j] <- 0
+        }
+      }
+    } else {
+      F <- matrix(1, 1, T)
     }
     
-    # Some covariates as NA; impute these with the mean (zero for these scaled vars)
-    if(sum(is.na(F)) > 0) {
-      na_fill <- which(is.na(F), arr.ind = T)
-      for(na_idx in 1:nrow(na_fill)) {
-        i <- na_fill[na_idx,1]
-        j <- na_fill[na_idx,2]
-        F[i,j] <- 0
-      }
+    # pull out the count table
+    Y <- t(otu_table(host_data)@.Data) # taxa x samples
+    Y <- Y[,idx]
+    # strip off sequence variant labels
+    colnames(Y) <- NULL
+    rownames(Y) <- NULL
+    
+    Q <- nrow(F)
+    D <- nrow(Y)
+    W <- diag(Q)
+    # scale covariate-inclusive and covariate-exclusive models to have similar total variance
+    W <- W/nrow(W)
+    G <- diag(Q)
+  
+    # fido uses the D^th element as the ALR reference by default
+    # if we'd like to use a different reference, do some row shuffling in Y to put the reference at the end
+    if(!is.null(alr_ref)) {
+      Y <- Y[c(setdiff(1:D,alr_ref),alr_ref),]
     }
-  } else {
-    F <- matrix(1, 1, T)
+  
+    # define the prior over baselines
+    C0 <- W
+    alr_ys <- driver::alr((t(Y) + 0.5))
+    alr_means <- colMeans(alr_ys)
+    M0 <- matrix(0, Q, D-1)
+    M0[1,] <- alr_means
+    
+    if(MAP) {
+      n_samples <- 0
+    }
+  
+    # I'm giving W about 1/2 the scale of gamma
+    # My thinking here is that in the gLV models we've been simulating from, we've seen that most of
+    #   the dynamism in the model results from /environmental interactions/, not innate volatility.
+    #   In my mind, giving W a smaller scale than gamma is consistent with relatively more volatility
+    #   presumed to result from interactions with the environment.
+    fit <- labraduck(Y = Y, upsilon = taxa_covariance$upsilon, Xi = taxa_covariance$Xi, F = F, G = G, W = W, M0 = M0, C0 = C0,
+                     observations = days, gamma_scale = (var_scale * 2/3), W_scale = (var_scale * 1/3), apply_smoother = MAP,
+                     n_samples = n_samples, ret_mean = MAP)
+    fits[[idx_it]] <- fit
   }
   
-  # pull out the count table
-  Y <- t(otu_table(host_data)@.Data) # taxa x samples
-  # strip off sequence variant labels
-  colnames(Y) <- NULL
-  rownames(Y) <- NULL
+  for(fit_it in 1:length(fits)) {
+    fit <- fits[[fit_it]]
+    # pack up results
+    fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, fit = fit)
   
-  Q <- nrow(F)
-  D <- nrow(Y)
-  W <- diag(Q)
-  # scale covariate-inclusive and covariate-exclusive models to have similar total variance
-  W <- W/nrow(W)
-  G <- diag(Q)
-
-  # fido uses the D^th element as the ALR reference by default
-  # if we'd like to use a different reference, do some row shuffling in Y to put the reference at the end
-  if(!is.null(alr_ref)) {
-    Y <- Y[c(setdiff(1:D,alr_ref),alr_ref),]
+    # save results
+    if(MAP) {
+      save_dir <- check_output_dir(c("output","model_fits",paste0(tax_level,"_MAP")))
+    } else {
+      save_dir <- check_output_dir(c("output","model_fits",tax_level))
+    }
+    saveRDS(fit_obj, file.path(save_dir,paste0(host,"_labraduckfit_",fit_it,".rds")))
   }
-
-  # define the prior over baselines
-  C0 <- W
-  alr_ys <- driver::alr((t(Y) + 0.5))
-  alr_means <- colMeans(alr_ys)
-  M0 <- matrix(0, Q, D-1)
-  M0[1,] <- alr_means
-  
-  if(MAP) {
-    n_samples <- 0
-  }
-
-  # I'm giving W about 1/2 the scale of gamma
-  # My thinking here is that in the gLV models we've been simulating from, we've seen that most of
-  #   the dynamism in the model results from /environmental interactions/, not innate volatility.
-  #   In my mind, giving W a smaller scale than gamma is consistent with relatively more volatility
-  #   presumed to result from interactions with the environment.
-  fit <- labraduck(Y = Y, upsilon = taxa_covariance$upsilon, Xi = taxa_covariance$Xi, F = F, G = G, W = W, M0 = M0, C0 = C0,
-                   observations = days, gamma_scale = (var_scale * 2/3), W_scale = (var_scale * 1/3), apply_smoother = MAP,
-                   n_samples = n_samples, ret_mean = MAP)
-
-  # pack up results
-  fit_obj <- list(Y = Y, alr_ys = alr_ys, alr_ref = alr_ref, fit = fit)
-
-  # save results
-  if(MAP) {
-    save_dir <- check_output_dir(c("output","model_fits",paste0(tax_level,"_MAP")))
-  } else {
-    save_dir <- check_output_dir(c("output","model_fits",tax_level))
-  }
-  saveRDS(fit_obj, file.path(save_dir,paste0(host,"_labraduckfit.rds")))
 }
 
 #' Perform k-fold cross-validation for a given host and kernel configuration choice

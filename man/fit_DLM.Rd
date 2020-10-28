@@ -13,7 +13,8 @@ fit_DLM(
   alr_ref = NULL,
   n_samples = 100,
   MAP = FALSE,
-  use_covariates = TRUE
+  use_covariates = TRUE,
+  split_diet = FALSE
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ fit_DLM(
 \item{MAP}{compute MAP estimate only (as single posterior sample)}
 
 \item{use_covariates}{if TRUE uses available rain, temperature, and diet data as covariates in the model}
+
+\item{split_diet}{if TRUE, splits diet PC1 into positive and negative subsets to treat as two 'environments'}
 }
 \description{
 Fit a dynamic linear model to a single host series using labraduck

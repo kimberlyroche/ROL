@@ -9,35 +9,13 @@ library(dplyr)
 library(driver)
 library(ggplot2)
 
-# Code pulled from universality_score_heatmap.R
-calc_xy <- function(vSigmas) {
-  if(is.null(dim(vSigmas))) {
-    dim(vSigmas) <- c(length(vSigmas), 1)
-  }
-  shared_direction <- mean(apply(sign(vSigmas), 2, function(z) {
-    max(table(z)/length(z))
-  }))
-  mean_strength <- mean(abs(apply(vSigmas, 2, mean)))
-  list(x = shared_direction, y = mean_strength)
-}
-
-# Returns the ordering used
-render_for_condition <- function(row_ordering = NULL, column_ordering = NULL) {
-  use_covariates <- FALSE
-  if(!is.null(row_ordering) & !is.null(column_ordering)) {
-    use_covariates <- TRUE
-  }
-  # Load no-covariate MAP fits
-  pattern_str <- "*_bassetfit.rds"
-  regexpr_str <- "_bassetfit.rds"
-  if(use_covariates) {
-    level_dir <- "output/model_fits/ASV_MAP"
-  } else {
-    level_dir <- "output/model_fits_nocovariates/ASV_MAP"
-  }
+# Read covariate-free MAP model fits
+get_Sigmas_DLM <- function(model_dir) {
+  pattern_str <- "*_labraduckfit.rds"
+  regexpr_str <- "_labraduckfit.rds"
+  level_dir <- paste0("output/model_fits/ASV_MAP/", model_dir)
   model_list <- list.files(path = level_dir, pattern = pattern_str, full.names = TRUE, recursive = FALSE)
-  hosts <<- as.vector(sapply(model_list, function(x) { idx <- regexpr(regexpr_str, x); return(substr(x, idx-3, idx-1)) } ))
-
+  hosts <- as.vector(sapply(model_list, function(x) { idx <- regexpr(regexpr_str, x); return(substr(x, idx-3, idx-1)) } ))
   Sigmas <- list()
   for(i in 1:length(hosts)) {
     host <- hosts[i]
@@ -46,23 +24,29 @@ render_for_condition <- function(row_ordering = NULL, column_ordering = NULL) {
     fit <- to_clr(fit)
     Sigmas[[host]] <- fit$Sigma[,,1]
   }
+  return(Sigmas)
+}
 
-  # Build a matrix (hosts x associations) of proportionalities (\rho_p from Quinn et al.)
-  # Code pulled from universal_microbes.R
+Sigmas_cov <- get_Sigmas_DLM(model_dir = "covariates")
+Sigmas_nocov <- get_Sigmas_DLM(model_dir = "no_covariates")
+# Sigmas_noise <- get_Sigmas_DLM(model_dir = "noise_covariates")
 
-  coordinate_number <- dim(Sigmas[[1]])[1]
-  label_pairs <- matrix(NA, coordinate_number, coordinate_number)
-  for(i in 1:coordinate_number) {
-    for(j in 1:coordinate_number) {
-      if(i < j) {
-        label_pairs[i,j] <- paste0(i,"_",j)
-      }
-    }
-  }
-  label_pairs <- label_pairs[upper.tri(label_pairs, diag=F)]
+coordinate_number <- dim(Sigmas_cov[[1]])[1]
+# label_pairs <- matrix(NA, coordinate_number, coordinate_number)
+# for(i in 1:coordinate_number) {
+#   for(j in 1:coordinate_number) {
+#     if(i < j) {
+#       label_pairs[i,j] <- paste0(i,"_",j)
+#     }
+#   }
+# }
+# label_pairs <- label_pairs[upper.tri(label_pairs, diag=F)]
 
-  associations <- matrix(NA, length(hosts), (coordinate_number^2)/2 - coordinate_number/2)
-  for(m in 1:length(hosts)) {
+get_association_matrix <- function(Sigmas) {
+  hosts <- names(Sigmas)
+  H <- length(hosts)
+  associations <- matrix(NA, H, (coordinate_number^2)/2 - coordinate_number/2)
+  for(m in 1:H) {
     host <- hosts[m]
     Sigma <- Sigmas[[m]]
     rhos <- c()
@@ -77,99 +61,32 @@ render_for_condition <- function(row_ordering = NULL, column_ordering = NULL) {
     }
     associations[m,] <- rhos
   }
+  associations
+}
 
-  if(is.null(row_ordering)) {
-    # In preparation for clustering, pull the "primary social group" labels we've been using
-    data <- load_data(tax_level = "ASV")
-    data <- subset_samples(data, sname %in% hosts)
-    metadata <- sample_data(data)
-    # create a list indexed by host name
-    group_labels <- numeric(length(hosts))
-    names(group_labels) <- hosts
-      
-    primary_group <- suppressWarnings(metadata %>%
-                                        select(c("sname", "collection_date", "grp")) %>%
-                                        filter(sname %in% hosts) %>% 
-                                        group_by(sname, grp) %>%
-                                        tally() %>%
-                                        slice(which.max(n)))
-    for(host in hosts) {
-      group_labels[host] <- primary_group[primary_group$sname == host,]$grp[[1]]
-    }
-    group_labels <- as.factor(group_labels)
+assoc_cov <- get_association_matrix(Sigmas_cov)
+assoc_nocov <- get_association_matrix(Sigmas_nocov)
+# assoc_noise <- get_association_matrix(Sigmas_noise)
 
-    # Impose host-ordering by group (clustered within groups)
-    groups <- unique(group_labels)
-    host.reorder <- c()
-    host.reorder.labels <- c()
-    for(g in 1:length(groups)) {
-      group_idx <- which(group_labels == groups[g])
-      d <- dist(associations[group_idx,])
-      clustering.hosts <- hclust(d)
-      host.reorder.within.group <- group_idx[clustering.hosts$order]
-      host.reorder <- c(host.reorder, host.reorder.within.group)
-      host.reorder.labels <- c(host.reorder.labels, unname(sapply(hosts[host.reorder.within.group], function(x) {
-        paste0(x, " (", group_labels[x], ")")
-      })))
-    }
-    # print(host.reorder.labels)
-    associations <- associations[host.reorder,]
-  } else {
-    associations <- associations[row_ordering,]
-  }
+# Calculate a canonical column and row ordering
+d.r <- dist(assoc_cov)
+o.r <- hclust(d.r)$order
+d.c <- dist(t(assoc_cov))
+o.c <- hclust(d.c)$order
 
-  if(is.null(column_ordering)) {
-    # Impose association-ordering
-    d <- dist(t(associations))
-    clustering.assoc <- hclust(d)
-    associations <- associations[,clustering.assoc$order]
-    label_pairs <- label_pairs[clustering.assoc$order]
-  } else {
-    associations <- associations[,column_ordering]
-    label_pairs <- label_pairs[column_ordering]
-  }
+assoc_cov_clustered <- assoc_cov[o.r,o.c]
+assoc_nocov_clustered <- assoc_nocov[o.r,o.c]
+# assoc_noise_clustered <- assoc_noise[o.r,o.c]
+# label_pairs_clustered <- label_pairs[o.c]
 
-  # Render heatmap
+render_heatmap <- function(associations, save_file) {
   df <- gather_array(associations, "proportionality", "host", "pair")
   p <- ggplot(df, aes(pair, host)) +
     geom_tile(aes(fill = proportionality)) +
     scale_fill_gradient2(low = "darkblue", high = "darkred")
-  if(use_covariates) {
-    ggsave("rug_cov.png", p, units="in", dpi=150, height=5, width=15)
-  } else {
-    ggsave("rug_nocov.png", p, units="in", dpi=150, height=5, width=15)
-  }
-
-  point_data <- data.frame(x = c(), y = c())
-  for(i in 1:ncol(associations)) {
-    temp <- calc_xy(associations[,i])
-    point_data <- rbind(point_data, data.frame(x = temp$x, y = temp$y))
-  }
-
-  bg_data <- data.frame(x = c(), y = c(), z = c())
-  shared_direction_proportion <- seq(from = 0.5, to = 1, by = 0.05)
-  mean_association_strength <- seq(from = 0, to = 1, by = 0.05)
-  for(x in shared_direction_proportion) {
-    for(y in mean_association_strength) {
-      bg_data <- rbind(bg_data, data.frame(x = x, y = y, z = x*y))
-    }
-  }
-
-  p <- ggplot() +
-    geom_raster(data = bg_data, aes(x = x, y = y, fill = z)) +
-    scale_fill_gradient(low = "white", high = "red") +
-    geom_point(data = point_data, aes(x = x, y = y), color = "#444444", shape = 1, fill = NA) +
-    xlab("proportion shared direction") +
-    ylab("mean strength of associations") +
-    labs(fill = "weighted \nuniversality\nscore")
-  if(use_covariates) {
-    ggsave("heatmap_cov.png", p, units = "in", dpi = 150, height = 6, width = 7)
-    return(list(row_ordering = host.reorder, column_ordering = clustering.assoc$order))
-  } else {
-    ggsave("heatmap_nocov.png", p, units = "in", dpi = 150, height = 6, width = 7)
-  }
+  ggsave(save_file, p, units="in", dpi=150, height=5, width=15)
 }
 
-orderings <- render_for_condition(row_ordering = NULL, column_ordering = NULL)
-render_for_condition(row_ordering = orderings$row_ordering, column_ordering = orderings$column_ordering)
-
+render_heatmap(assoc_cov_clustered, "rug_cov.png")
+render_heatmap(assoc_nocov_clustered, "rug_nocov.png")
+# render_heatmap(assoc_noise_clustered, "rug_noise.png")
