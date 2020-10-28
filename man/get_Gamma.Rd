@@ -4,8 +4,12 @@
 \alias{get_Gamma}
 \title{Define a kernel (function) over samples}
 \usage{
-get_Gamma(kernel_scale, proportions, min_correlation = 0.1,
-  days_to_baseline = 90)
+get_Gamma(
+  kernel_scale,
+  proportions,
+  min_correlation = 0.1,
+  days_to_baseline = 90
+)
 }
 \arguments{
 \item{kernel_scale}{total variance for the composite kernel}

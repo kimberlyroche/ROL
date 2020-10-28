@@ -482,7 +482,7 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
   if(MAP) {
     n_samples <- 0
   }
-  
+
   # I'm giving W about 1/2 the scale of gamma
   # My thinking here is that in the gLV models we've been simulating from, we've seen that most of
   #   the dynamism in the model results from /environmental interactions/, not innate volatility.

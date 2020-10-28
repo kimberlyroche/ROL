@@ -4,8 +4,12 @@
 \alias{get_pairwise_proportionalities}
 \title{Get all pairwise (MAP) proportionalities between microbes at designated taxonomic level}
 \usage{
-get_pairwise_proportionalities(tax_level = "ASV", logratio = "alr",
-  Sigmas = NULL)
+get_pairwise_proportionalities(
+  tax_level = "ASV",
+  logratio = "alr",
+  Sigmas = NULL,
+  DLM = FALSE
+)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -13,6 +17,8 @@ get_pairwise_proportionalities(tax_level = "ASV", logratio = "alr",
 \item{logratio}{logratio representation to use (e.g. "alr", "ilr", "clr")}
 
 \item{Sigmas}{optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded}
+
+\item{DLM}{if TRUE, looks for DLM model fits instead of GP model fits}
 
 \item{taxon_idx}{the logratio coordinate to render correlations against}
 }

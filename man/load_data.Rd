@@ -4,8 +4,12 @@
 \alias{load_data}
 \title{Load ABRP 16S data and filter out low abundance taxa}
 \usage{
-load_data(tax_level = "ASV", host_sample_min = 75,
-  count_threshold = 5, sample_threshold = 0.2)
+load_data(
+  tax_level = "ASV",
+  host_sample_min = 75,
+  count_threshold = 5,
+  sample_threshold = 0.2
+)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

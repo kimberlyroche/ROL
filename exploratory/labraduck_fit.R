@@ -264,6 +264,8 @@ Sigma_fn <- paste0("Sigmas_",tag1,"_",host,"_",tag2)
 #   but subsequent runs always work. This stupid hack fits the model on a trivial interval and thereby
 #   loads whatever needs to be loaded (??? nothing seems to change in the global environment from run 1
 #   to run 2) such that the second run always works.
+# SOLVED (10/20/2020): This was a mixture of includes of stray and fido. It must have been the order
+# of the includes.
 data <- slice_dataset(full_data, 1, 3)
 fit <- fit_model(data, use_covariates, var_scale)
 

@@ -4,9 +4,16 @@
 \alias{plot_interaction_heatmap}
 \title{Plot heatmap over all pairwise (MAP) correlations between microbes at designated taxonomic level}
 \usage{
-plot_interaction_heatmap(tax_level = "ASV", logratio = "alr",
-  Sigmas = NULL, cluster = TRUE, taxon_idx = NULL,
-  show_plot = FALSE, return_matrix = FALSE)
+plot_interaction_heatmap(
+  tax_level = "ASV",
+  logratio = "alr",
+  Sigmas = NULL,
+  DLM = FALSE,
+  cluster = TRUE,
+  taxon_idx = NULL,
+  show_plot = FALSE,
+  return_matrix = FALSE
+)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}
@@ -14,6 +21,8 @@ plot_interaction_heatmap(tax_level = "ASV", logratio = "alr",
 \item{logratio}{logratio representation to use (e.g. "alr", "ilr", "clr")}
 
 \item{Sigmas}{optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded}
+
+\item{DLM}{if TRUE, looks for DLM model fits instead of GP model fits}
 
 \item{cluster}{optional flag to hierarchically cluster across hosts and interactions}
 
@@ -30,6 +39,6 @@ NULL or heatmap matrix
 Plot heatmap over all pairwise (MAP) correlations between microbes at designated taxonomic level
 }
 \examples{
-Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="clr")
-plot_interaction_heatmap(tax_level="ASV", logratio="clr", Sigmas=Sigmas)
+Sigmas <- load_MAP_estimates(tax_level = "ASV", DLM = TRUE, logratio = "clr")
+plot_interaction_heatmap(tax_level = "ASV", logratio = "clr", Sigmas = Sigmas)
 }

@@ -4,8 +4,11 @@
 \alias{assign_concise_taxonomy}
 \title{Get concise taxonomic labels for microbes}
 \usage{
-assign_concise_taxonomy(tax_level = "ASV", logratio = "alr",
-  other_category = 0)
+assign_concise_taxonomy(
+  tax_level = "ASV",
+  logratio = "alr",
+  other_category = 0
+)
 }
 \arguments{
 \item{tax_level}{taxonomic level at which to agglomerate data}

@@ -1,5 +1,6 @@
 library(ggplot2)
 library(lomb)
+library(gridExtra)
 
 downsample_series <- function(y1, y2, downsample_to_percent = 0.1) {
   n <- length(y1)
@@ -15,10 +16,12 @@ plot_series <- function(x, y1, y2, labels = NULL) {
   n <- length(x)
   if(is.null(labels)) {
     labels <- as.factor(c(rep(1, n), rep(2, n)))
+    levels(labels) <- c("series 1", "series 2")
   }
   df <- data.frame(day = x, abundance = c(y1, y2), label = labels)
   p <- ggplot(df, aes(x = day, y = abundance, color = label)) +
-    geom_point()
+    geom_point() +
+    ylab("log abundance")
   p
 }
 
@@ -30,72 +33,72 @@ score <- function(y1, y2, labels) {
     if(yy >= mean.y1) {
       1
     } else {
-      -1
+      0
     }
   })
   binary.y2 <- sapply(y2, function(yy) {
     if(yy >= mean.y2) {
       1
     } else {
-      -1
-    }
-  })
-  n <- length(labels)
-  series_consensus <- sapply(1:n, function(yy) {
-    if(binary.y1[yy] == binary.y2[yy]) {
-      if(binary.y1[yy] == 1) {
-        1
-      } else {
-        -1
-      }
-    } else {
       0
     }
   })
-  season_disagreement <- 0
-  wet_season <- which(labels == "wet")
-  dry_season <- which(labels == "dry")
-  wet_total <- sum(series_consensus[wet_season])
-  dry_total <- sum(series_consensus[dry_season])
-  max_difference <- length(wet_season) + length(dry_season)
-  if(sign(wet_total) == sign(dry_total)) {
-    observed_difference <- abs(abs(wet_total) - abs(dry_total))
-  } else {
-    observed_difference <- abs(abs(wet_total) + abs(dry_total))
-  }
-  observed_difference / max_difference
+  n <- length(labels)
+  season_v1 <- numeric(n)
+  season_v1[labels == "wet"] <- 0
+  season_v1[labels == "dry"] <- 1
+  season_v2 <- numeric(n)
+  season_v2[labels == "wet"] <- 1
+  season_v2[labels == "dry"] <- 0
+  match_score <- sum(binary.y1 == binary.y2)/n
+  max_seasonality.y1 <- max(c(sum(binary.y1 == season_v1)/n,
+                              sum(binary.y1 == season_v2)/n))
+  max_seasonality.y2 <- max(c(sum(binary.y2 == season_v1)/n,
+                              sum(binary.y2 == season_v2)/n))
+  c(match_score, max_seasonality.y1, max_seasonality.y2)
 }
 
 ## -----------------------------------------------------------------------------------------------------------------------------
 ##   Correlated series y, y.corr, anti-correlated series y.acorr, and uncorrelated series y.uncorr
 ## -----------------------------------------------------------------------------------------------------------------------------
 
-noise_factor <- 1
+noise_factor <- 0.1
 x <- seq(from = 0, to = 10*pi, length.out = 1000)
 y <- sin(x) + rnorm(1000)*noise_factor
 y.corr <- sin(x) + rnorm(1000)*noise_factor
 y.acorr <- sin(-x) + rnorm(1000)*noise_factor
-y.uncorr <- rnorm(1000)*0.5
+y.uncorr1 <- rnorm(1000)*0.5
+y.uncorr2 <- rnorm(1000)*0.5
 labels <- as.factor(sin(x) > 0)
 levels(labels) <- c("wet", "dry")
-plot_series(x, y, y.corr)
-plot_series(x, y, y.acorr)
-plot_series(x, y, y.uncorr)
-plot_series(x, y, y.corr, labels = labels)
+p1 <- plot_series(x, y, y.corr)
+p2 <- plot_series(x, y, y.acorr)
+p3 <- plot_series(x, y, y.uncorr1)
+p4 <- plot_series(x, y.uncorr1, y.uncorr2)
+grid.arrange(grobs = list(p1, p2, p3, p4), ncol = 2)
 
 ## -----------------------------------------------------------------------------------------------------------------------------
 ##   "Score" seasonal co-occurrence
 ## -----------------------------------------------------------------------------------------------------------------------------
 
+plot_series(x, sin(x), sin(x))
 score(sin(x), sin(x), labels) # noiseless
 
-score(y, y.corr, labels)
+plot_series(x, y, y)
+score(y, y, labels)
+
 plot_series(x, y, y.corr)
+score(y, y.corr, labels)
 
-score(y, y.acorr, labels)
 plot_series(x, y, y.acorr)
+score(y, y.acorr, labels)
 
-score(y, y.uncorr, labels)
-plot_series(x, y, y.uncorr)
+plot_series(x, y, y.uncorr1)
+score(y, y.uncorr1, labels)
 
+# zero-correlation (a coin flip) shows up as ~0.5 score
+# anti-correlation is about 0
+# positive correlation is about 1
+plot_series(x, y.uncorr1, y.uncorr2)
+score(y.uncorr1, y.uncorr2, labels)
 

@@ -4,8 +4,16 @@
 \alias{fit_DLM}
 \title{Fit a dynamic linear model to a single host series using labraduck}
 \usage{
-fit_DLM(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV",
-  alr_ref = NULL, n_samples = 100, MAP = FALSE)
+fit_DLM(
+  data,
+  host,
+  taxa_covariance,
+  var_scale = 1,
+  tax_level = "ASV",
+  alr_ref = NULL,
+  n_samples = 100,
+  MAP = FALSE
+)
 }
 \arguments{
 \item{data}{a phyloseq object}

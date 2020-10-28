@@ -64,9 +64,9 @@ load_full_posteriors <- function(tax_level="ASV", logratio="alr") {
 #' @return correlation matrix of dimensions {number of hosts} x {number of logratio taxa - 1}
 #' @export
 #' @examples
-#' interactions <- get_all_vs_one_correlations(taxon_idx=1, tax_level="ASV", logratio="alr")
-get_all_vs_one_correlations <- function(taxon_idx, tax_level="ASV", logratio="alr", Sigmas=NULL) {
-  model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
+#' interactions <- get_all_vs_one_correlations(taxon_idx = 1, tax_level = "ASV", logratio = "alr")
+get_all_vs_one_correlations <- function(taxon_idx, tax_level = "ASV", logratio = "alr", Sigmas = NULL) {
+  model_list <- get_fitted_model_list(tax_level = tax_level, MAP = TRUE)
   if(logratio == "alr") {
     coordinate_number <- model_list$D-1
   } else {
@@ -96,12 +96,13 @@ get_all_vs_one_correlations <- function(taxon_idx, tax_level="ASV", logratio="al
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @param Sigmas optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded
+#' @param DLM if TRUE, looks for DLM model fits instead of GP model fits
 #' @return correlation matrix of dimensions {number of hosts} x {number of unique interactions between logratio taxa}
 #' @export
 #' @examples
-#' interactions <- get_pairwise_correlations(tax_level="ASV", logratio="alr")
-get_pairwise_correlations <- function(tax_level="ASV", logratio="alr", Sigmas=NULL) {
-  model_list <- get_fitted_model_list(tax_level=tax_level, MAP=TRUE)
+#' interactions <- get_pairwise_correlations(tax_level = "ASV", logratio = "alr")
+get_pairwise_correlations <- function(tax_level = "ASV", logratio = "alr", Sigmas = NULL, DLM = FALSE) {
+  model_list <- get_fitted_model_list(tax_level = tax_level, DLM = DLM, MAP = TRUE)
   if(logratio == "alr") {
     coordinate_number <- model_list$D-1
   } else {
@@ -147,19 +148,20 @@ get_pairwise_correlations <- function(tax_level="ASV", logratio="alr", Sigmas=NU
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @param Sigmas optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded
+#' @param DLM if TRUE, looks for DLM model fits instead of GP model fits
 #' @return correlation matrix of dimensions {number of hosts} x {number of unique interactions between logratio taxa}
 #' @export
 #' @examples
 #' interactions <- get_pairwise_proportionalities(tax_level = "ASV", logratio = "alr")
-get_pairwise_proportionalities <- function(tax_level = "ASV", logratio = "alr", Sigmas = NULL) {
-  model_list <- get_fitted_model_list(tax_level = tax_level, MAP = TRUE)
+get_pairwise_proportionalities <- function(tax_level = "ASV", logratio = "alr", Sigmas = NULL, DLM = FALSE) {
+  model_list <- get_fitted_model_list(tax_level = tax_level, DLM = DLM, MAP = TRUE)
   if(logratio == "alr") {
     coordinate_number <- model_list$D-1
   } else {
     coordinate_number <- model_list$D
   }
   if(is.null(Sigmas)) {
-    Sigmas <- load_MAP_estimates(tax_level=tax_level, logratio=logratio)
+    Sigmas <- load_MAP_estimates(tax_level = tax_level, logratio = logratio, DLM = DLM)
   }
   if(dim(Sigmas[1][[1]])[1] != coordinate_number) {
     stop(paste0("Dimensions of covariance matrices don't match expected logratio dimensions!\n"))
@@ -207,6 +209,7 @@ get_pairwise_proportionalities <- function(tax_level = "ASV", logratio = "alr", 
 #' @param tax_level taxonomic level at which to agglomerate data
 #' @param logratio logratio representation to use (e.g. "alr", "ilr", "clr")
 #' @param Sigmas optional list (indexed by host short name) of MAP estimates of microbial covariance; if not provided, this will be loaded
+#' @param DLM if TRUE, looks for DLM model fits instead of GP model fits
 #' @param cluster optional flag to hierarchically cluster across hosts and interactions
 #' @param taxon_idx optional logratio coordinate to render correlations against; if NULL, render all pairwise correlations
 #' @param show_plot optional flag to show() plot in addition to rendering it to a file
@@ -215,19 +218,19 @@ get_pairwise_proportionalities <- function(tax_level = "ASV", logratio = "alr", 
 #' @import driver
 #' @export
 #' @examples
-#' Sigmas <- load_MAP_estimates(tax_level="ASV", logratio="clr")
-#' plot_interaction_heatmap(tax_level="ASV", logratio="clr", Sigmas=Sigmas)
-plot_interaction_heatmap <- function(tax_level="ASV", logratio = "alr", Sigmas=NULL,
-                                     cluster=TRUE, taxon_idx=NULL, show_plot=FALSE, return_matrix=FALSE) {
+#' Sigmas <- load_MAP_estimates(tax_level = "ASV", DLM = TRUE, logratio = "clr")
+#' plot_interaction_heatmap(tax_level = "ASV", logratio = "clr", Sigmas = Sigmas)
+plot_interaction_heatmap <- function(tax_level = "ASV", logratio = "alr", Sigmas = NULL, DLM = FALSE,
+                                     cluster = TRUE, taxon_idx = NULL, show_plot = FALSE, return_matrix = FALSE) {
   if(logratio != "alr" & logratio != "clr") {
     stop(paste0("Only logratio representations ALR and CLR allowed!\n"))
   }
 
   if(is.null(taxon_idx)) {
     # CLR correlation
-    # pairs_obj <- get_pairwise_correlations(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas)
+    # pairs_obj <- get_pairwise_correlations(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas, DLM = DLM)
     # proportionality (\rho_p as in Quinn et a.)
-    pairs_obj.prop <- get_pairwise_proportionalities(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas)
+    pairs_obj <- get_pairwise_proportionalities(tax_level = tax_level, logratio = logratio, Sigmas = Sigmas, DLM = DLM)
     labels <- pairs_obj$labels
     interactions <- pairs_obj$interactions
     
