@@ -12,7 +12,8 @@ fit_DLM(
   tax_level = "ASV",
   alr_ref = NULL,
   n_samples = 100,
-  MAP = FALSE
+  MAP = FALSE,
+  use_covariates = TRUE
 )
 }
 \arguments{
@@ -31,6 +32,8 @@ fit_DLM(
 \item{n_samples}{number of posterior samples to draw}
 
 \item{MAP}{compute MAP estimate only (as single posterior sample)}
+
+\item{use_covariates}{if TRUE uses available rain, temperature, and diet data as covariates in the model}
 }
 \description{
 Fit a dynamic linear model to a single host series using labraduck

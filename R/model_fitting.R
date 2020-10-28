@@ -406,6 +406,7 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
 #' @param alr_ref index of reference ALR coordinate
 #' @param n_samples number of posterior samples to draw
 #' @param MAP compute MAP estimate only (as single posterior sample)
+#' @param use_covariates if TRUE uses available rain, temperature, and diet data as covariates in the model
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
 #' @import phyloseq
@@ -417,7 +418,8 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
 #' params <- formalize_parameters(data)
 #' taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
 #' fit_DLM(data, host = "GAB", taxa_covariance = taxa_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
-fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV", alr_ref = NULL, n_samples = 100, MAP = FALSE) {
+fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV", alr_ref = NULL,
+                    n_samples = 100, MAP = FALSE, use_covariates = TRUE) {
   if(MAP) {
     cat(paste0("Fitting fido::labraduck model (MAP) to host ",host,"\n"))
   } else {
@@ -445,14 +447,32 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
   
   T <- max(days)
   # Build the pseudo-covariate matrix
-  F <- matrix(0, 3, T)
-  F[1,] <- 1
-  for(i in 1:length(days)) {
-    # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
-    F[2,days[i]] <- as.vector(scale(metadata.diet$PC1))[i]
-    F[3,days[i]] <- as.vector(scale(metadata.diet$rain_monthly))[i]
+  if(use_covariates) {
+    F <- matrix(0, 9, T)
+    F[1,] <- 1
+    for(i in 1:length(days)) {
+      # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
+      F[2,days[i]] <- as.vector(scale(metadata.diet$rain_monthly))[i]
+      F[3,days[i]] <- as.vector(scale(metadata.diet$tempmax_monthly))[i]
+      F[4,days[i]] <- as.vector(scale(metadata.diet$diet_PC1))[i]
+      F[5,days[i]] <- as.vector(scale(metadata.diet$diet_PC2))[i]
+      F[6,days[i]] <- as.vector(scale(metadata.diet$diet_PC3))[i]
+      F[7,days[i]] <- as.vector(scale(metadata.diet$diet_PC4))[i]
+      F[8,days[i]] <- as.vector(scale(metadata.diet$diet_PC5))[i]
+      F[9,days[i]] <- as.vector(scale(metadata.diet$diet_PC6))[i]
+    }
+    
+    # Some covariates as NA; impute these with the mean (zero for these scaled vars)
+    na_fill <- which(is.na(F), arr.ind = T)
+    for(na_idx in 1:nrow(na_fill)) {
+      i <- na_fill[na_idx,1]
+      j <- na_fill[na_idx,2]
+      F[i,j] <- 0
+    }
+  } else {
+    F <- matrix(1, 1, T)
   }
-
+  
   # pull out the count table
   Y <- t(otu_table(host_data)@.Data) # taxa x samples
   # strip off sequence variant labels

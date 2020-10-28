@@ -20,7 +20,7 @@ names(md)
 well_sampled_hosts <- names(which(sort(table(md$host), decreasing = TRUE) >= 75))
 
 # Pull a host
-host_label <- well_sampled_hosts[1]
+host_label <- well_sampled_hosts[5]
 
 # Pull interesting covariates
 rain_monthly <- md$rain_monthly[md$host == host_label]
