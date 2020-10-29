@@ -14,6 +14,7 @@ fit_DLM(
   n_samples = 100,
   MAP = FALSE,
   use_covariates = TRUE,
+  scramble_covariates = FALSE,
   split_diet = FALSE
 )
 }
@@ -35,6 +36,8 @@ fit_DLM(
 \item{MAP}{compute MAP estimate only (as single posterior sample)}
 
 \item{use_covariates}{if TRUE uses available rain, temperature, and diet data as covariates in the model}
+
+\item{scramble_covariates}{if TRUE, shuffles the covariates to test the effect of 'noise'}
 
 \item{split_diet}{if TRUE, splits diet PC1 into positive and negative subsets to treat as two 'environments'}
 }
