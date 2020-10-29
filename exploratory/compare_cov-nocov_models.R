@@ -27,14 +27,14 @@ get_Sigmas_DLM <- function(model_dir) {
   return(Sigmas)
 }
 
-# Sigmas_cov <- get_Sigmas_DLM(model_dir = "covariates")
-# Sigmas_nocov <- get_Sigmas_DLM(model_dir = "no_covariates")
-# Sigmas_noise <- get_Sigmas_DLM(model_dir = "noise_covariates")
+Sigmas_cov <- get_Sigmas_DLM(model_dir = "covariates")
+Sigmas_nocov <- get_Sigmas_DLM(model_dir = "no_covariates")
+Sigmas_noise <- get_Sigmas_DLM(model_dir = "noise_covariates")
 
 Sigmas_PC1 <- get_Sigmas_DLM(model_dir = "diet_PC1")
 Sigmas_PC2 <- get_Sigmas_DLM(model_dir = "diet_PC2")
 
-coordinate_number <- dim(Sigmas_PC1[[1]])[1]
+coordinate_number <- dim(Sigmas_cov[[1]])[1]
 
 # label_pairs <- matrix(NA, coordinate_number, coordinate_number)
 # for(i in 1:coordinate_number) {
@@ -68,14 +68,12 @@ get_association_matrix <- function(Sigmas) {
   associations
 }
 
-# assoc_cov <- get_association_matrix(Sigmas_cov)
-# assoc_nocov <- get_association_matrix(Sigmas_nocov)
-# assoc_noise <- get_association_matrix(Sigmas_noise)
+assoc_cov <- get_association_matrix(Sigmas_cov)
+assoc_nocov <- get_association_matrix(Sigmas_nocov)
+assoc_noise <- get_association_matrix(Sigmas_noise)
 
 assoc_PC1 <- get_association_matrix(Sigmas_PC1)
 assoc_PC2 <- get_association_matrix(Sigmas_PC2)
-
-ref
 
 # Calculate a canonical column and row ordering
 d.r <- dist(assoc_cov)
@@ -85,7 +83,11 @@ o.c <- hclust(d.c)$order
 
 assoc_cov_clustered <- assoc_cov[o.r,o.c]
 assoc_nocov_clustered <- assoc_nocov[o.r,o.c]
-# assoc_noise_clustered <- assoc_noise[o.r,o.c]
+assoc_noise_clustered <- assoc_noise[o.r,o.c]
+
+assoc_PC1_clustered <- assoc_PC1[o.r,o.c]
+assoc_PC2_clustered <- assoc_PC2[o.r,o.c]
+
 # label_pairs_clustered <- label_pairs[o.c]
 
 render_heatmap <- function(associations, save_file) {
@@ -98,4 +100,7 @@ render_heatmap <- function(associations, save_file) {
 
 render_heatmap(assoc_cov_clustered, "rug_cov.png")
 render_heatmap(assoc_nocov_clustered, "rug_nocov.png")
-# render_heatmap(assoc_noise_clustered, "rug_noise.png")
+render_heatmap(assoc_noise_clustered, "rug_noise.png")
+
+render_heatmap(assoc_PC1_clustered, "rug_PC1.png")
+render_heatmap(assoc_PC2_clustered, "rug_PC2.png")

@@ -407,7 +407,6 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
 #' @param n_samples number of posterior samples to draw
 #' @param MAP compute MAP estimate only (as single posterior sample)
 #' @param use_covariates if TRUE uses available rain, temperature, and diet data as covariates in the model
-#' @param scramble_covariates if TRUE, shuffles the covariates to test the effect of 'noise'
 #' @param split_diet if TRUE, splits diet PC1 into positive and negative subsets to treat as two 'environments'
 #' @details Fitted model and metadata saved to designated model output directory.
 #' @return NULL
@@ -421,7 +420,7 @@ fit_GP <- function(data, host, taxa_covariance, sample_covariance, tax_level = "
 #' taxa_covariance <- get_Xi(phyloseq::ntaxa(data), total_variance = 1)
 #' fit_DLM(data, host = "GAB", taxa_covariance = taxa_covariance, tax_level = tax_level, alr_ref = params$alr_ref, MAP = TRUE)
 fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV", alr_ref = NULL,
-                    n_samples = 100, MAP = FALSE, use_covariates = TRUE, scramble_covariates = FALSE, split_diet = FALSE) {
+                    n_samples = 100, MAP = FALSE, use_covariates = TRUE, split_diet = FALSE) {
   if(MAP) {
     cat(paste0("Fitting fido::labraduck model (MAP) to host ",host,"\n"))
   } else {
@@ -459,13 +458,22 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
     day0 <- min(days)
     days <- round(unname(sapply(days, function(x) difftime(x, day0, units = "days")))) + 1
     
+    # pull out the count table
+    Y <- t(otu_table(host_data)@.Data) # taxa x samples
+    Y <- Y[,idx]
+    # strip off sequence variant labels
+    colnames(Y) <- NULL
+    rownames(Y) <- NULL
+    
+    # clr.Y <- clr_array(Y + 0.5, parts = 1)
+    
     T <- max(days)
     # Build the pseudo-covariate matrix
     if(use_covariates) {
       F <- matrix(0, 9, T)
       F[1,] <- 1
       for(i in 1:length(days)) {
-        # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
+        # # F[2,data$days[i]] <- data$season[i] # season actually worsens the fit here
         F[2,days[i]] <- as.vector(scale(log(metadata.diet$rain_monthly + 0.1)))[i]
         F[3,days[i]] <- as.vector(scale(metadata.diet$tempmax_monthly))[i]
         F[4,days[i]] <- as.vector(scale(metadata.diet$diet_PC1))[i]
@@ -485,20 +493,9 @@ fit_DLM <- function(data, host, taxa_covariance, var_scale = 1, tax_level = "ASV
           F[i,j] <- 0
         }
       }
-      if(scramble_covariates) {
-        days_scrambled <- sample(days)
-        F[,days] <- F[,days_scrambled]
-      }
     } else {
       F <- matrix(1, 1, T)
     }
-    
-    # pull out the count table
-    Y <- t(otu_table(host_data)@.Data) # taxa x samples
-    Y <- Y[,idx]
-    # strip off sequence variant labels
-    colnames(Y) <- NULL
-    rownames(Y) <- NULL
     
     Q <- nrow(F)
     D <- nrow(Y)
