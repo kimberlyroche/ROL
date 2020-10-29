@@ -3,6 +3,7 @@ library(stringr)
 library(driver)
 library(phyloseq)
 library(dplyr)
+library(ggplot2)
 
 plot_shuffled <- function(a, b, lim1, lim2, max_pairs = NULL) {
   # Smaller indices roughly correspond to higher abundance taxa and larger indices to lower abundance taxa.
@@ -55,6 +56,32 @@ dim(top_pos)
 dim(top_neg)
 dim(top_null)
 
+# (0) Are the consistent correlators more persistently /present/?
+data <- load_data(tax_level = "ASV", host_sample_min = 75, count_threshold = 5, sample_threshold = 0.2)
+counts <- t(otu_table(data)@.Data) # taxa x ~5K samples
+params <- formalize_parameters(data)
+counts <- counts[c(setdiff(1:nrow(counts),params$alr_ref),params$alr_ref),]
+
+zero_frequency <- data.frame(zero_frequency = c(), type = c())
+n_j <- ncol(counts)
+for(j in 1:ncol(top_null)) {
+  pair <- top_null[,j]
+  zero_frequency <- rbind(zero_frequency, data.frame(zero_frequency = sum(unname(counts[pair,]) == 0)/(n_j*2), type = 1))
+}
+for(j in 1:ncol(top_pos)) {
+  pair <- top_pos[,j]
+  zero_frequency <- rbind(zero_frequency, data.frame(zero_frequency = sum(unname(counts[pair,]) == 0)/(n_j*2), type = 2))
+}
+for(j in 1:ncol(top_neg)) {
+  pair <- top_neg[,j]
+  zero_frequency <- rbind(zero_frequency, data.frame(zero_frequency = sum(unname(counts[pair,]) == 0)/(n_j*2), type = 3))
+}
+zero_frequency$type <- as.factor(zero_frequency$type)
+levels(zero_frequency$type) <- c("null", "positive", "negative")
+
+ggplot(zero_frequency, aes(x = as.factor(type), y = zero_frequency)) +
+  geom_boxplot()
+
 # (1) Is there evidence of one taxon wildly more prevalent than the others in terms of associations? (NO)
 freqs_pos <- table(c(top_pos))
 plot(as.numeric(names(freqs_pos)), as.numeric(freqs_pos), xlab = "taxon ID", ylab = "frequency", main = "positive correlator frequencies") # positive
@@ -97,8 +124,6 @@ ggplot(df, aes(x = log_abundance1, y = log_abundance2)) +
 # Negative correlators: Tend to be enriched for things at different quantiles of expression (same side).
 
 # Pull taxonomy.
-data <- load_data(tax_level = "ASV", host_sample_min = 75, count_threshold = 5, sample_threshold = 0.2)
-params <- formalize_parameters(data)
 tax <- get_taxonomy(data, alr_ref = params$alr_ref)
 
 short_tax <- function(x) {

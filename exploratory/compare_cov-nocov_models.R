@@ -27,11 +27,15 @@ get_Sigmas_DLM <- function(model_dir) {
   return(Sigmas)
 }
 
-Sigmas_cov <- get_Sigmas_DLM(model_dir = "covariates")
-Sigmas_nocov <- get_Sigmas_DLM(model_dir = "no_covariates")
+# Sigmas_cov <- get_Sigmas_DLM(model_dir = "covariates")
+# Sigmas_nocov <- get_Sigmas_DLM(model_dir = "no_covariates")
 # Sigmas_noise <- get_Sigmas_DLM(model_dir = "noise_covariates")
 
-coordinate_number <- dim(Sigmas_cov[[1]])[1]
+Sigmas_PC1 <- get_Sigmas_DLM(model_dir = "diet_PC1")
+Sigmas_PC2 <- get_Sigmas_DLM(model_dir = "diet_PC2")
+
+coordinate_number <- dim(Sigmas_PC1[[1]])[1]
+
 # label_pairs <- matrix(NA, coordinate_number, coordinate_number)
 # for(i in 1:coordinate_number) {
 #   for(j in 1:coordinate_number) {
@@ -64,9 +68,14 @@ get_association_matrix <- function(Sigmas) {
   associations
 }
 
-assoc_cov <- get_association_matrix(Sigmas_cov)
-assoc_nocov <- get_association_matrix(Sigmas_nocov)
+# assoc_cov <- get_association_matrix(Sigmas_cov)
+# assoc_nocov <- get_association_matrix(Sigmas_nocov)
 # assoc_noise <- get_association_matrix(Sigmas_noise)
+
+assoc_PC1 <- get_association_matrix(Sigmas_PC1)
+assoc_PC2 <- get_association_matrix(Sigmas_PC2)
+
+ref
 
 # Calculate a canonical column and row ordering
 d.r <- dist(assoc_cov)
