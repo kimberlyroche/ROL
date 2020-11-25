@@ -86,12 +86,11 @@ agglomerate_data <- function(tax_level="ASV") {
   #   Error in x[keepIndex, bad_ranks] <- NA_character_ :
   #   ALTSTRING classes must provide a Set_elt method
   #
-  # this occurs where phyloseq is trying to label as NA the taxonomic labels of
+  # This occurs where phyloseq is trying to label as NA the taxonomic labels of
   # taxa it's subsequently going to merge; not sure how/why/when exactly the issue
   # arises but one workaround is to proactively label as NA all taxa we're going
-  # to merge before we give them to phyloseq; this involves some weird type
-  # changing
-  # to do: submit reprex and bug report to phyloseq devs!
+  # to merge before we give them to phyloseq. This involves some weird type
+  # changing. TO DO: Work up a reprex and submit bug report to phyloseq devs. (?)
 
   altered_tax <- as.data.frame(tax_table(data)@.Data, stringsAsFactors=FALSE)
   altered_tax[merge_indices,] <- rep("other", sum(merge_indices))
