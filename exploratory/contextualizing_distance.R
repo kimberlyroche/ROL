@@ -493,11 +493,11 @@ if(file.exists(data_file_1) & file.exists(data_file_2)) {
       layer <- str_match_all(lake_name, regex("[H|E]$"))
       if(nrow(layer[[1]]) > 0) {
         if(layer[[1]][1,1] == "H") {
-          # hypolimnion
+          # hypolimnion; deep water
           metadata$lake[i] <- substr(lake_name, 1, str_length(lake_name)-1)
           metadata$layer[i] <- "H"
         } else {
-          # epilimnion
+          # epilimnion; shallow water
           metadata$lake[i] <- substr(lake_name, 1, str_length(lake_name)-1)
           metadata$layer[i] <- "E"
         }

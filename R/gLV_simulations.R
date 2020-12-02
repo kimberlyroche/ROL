@@ -21,8 +21,8 @@ generate_innate_params <- function(S, start_time, end_time, PhiE, almean) {
   }
   
   # K <- rnorm(S, mean = 5000, sd = 0.7)
-  K <- round(rdirichlet(1, rep(1, S))*10000)[1,]
-  
+  K <- round(rdirichlet(1, rep(1, S))*10000)[1,] + runif(S, min = 1, max = 20) # prevent zeros here
+    
   alsi <- matrix(rnorm(S*S, mean = almean, sd = runif(1, min = 0.001, max = 0.05)), nrow=S, ncol=S)
   al <- alsi*matrix(K, S, S)/t(matrix(K, S, S))
   diag(al) <- 1
@@ -31,7 +31,7 @@ generate_innate_params <- function(S, start_time, end_time, PhiE, almean) {
   StbEq <- F
   NtryStbEq <- 0
   while((StbEq == F) & (NtryStbEq < 10000)) {
-    rmbound <- c(runif(1, min = 0, max = 1), runif(1, min = 0,max = 3))
+    rmbound <- c(runif(1, min = 0, max = 1), runif(1, min = 0, max = 3))
     rm <- runif(S, min = min(rmbound), max = max(rmbound))
     A <- -rm*NiTh/K*al
     diag(A) <- 1 + diag(A)
@@ -129,7 +129,8 @@ convert_series_clr <- function(TS) {
 
 #' @param S number of species to simulate
 #' @param H number of hosts to simulate
-#' @param scenario scenario to simulate (see details)
+#' @param shared_param_level see details
+#' @param shared_noise_proportion proportion of environmental perturbations "in-common" to the population
 #' @param start_time time point at which to begin "recording" the series (previous time points will be
 #' discarded as burn-in)
 #' @param end_time full length of series to simulate (including burn-in)
@@ -139,16 +140,12 @@ convert_series_clr <- function(TS) {
 #' the system; I believe -1.0 indicates strong cooperation, 1.0 indicates strong competition
 #' @return named list of parameters
 #' @details
-#' Scenarios are as follows
-#  1: Nothing in common between hosts
-#  2: 50% Environment in common
-#  3: 80% Environment in common
-#  4: "Innate" parameters (baseline abundances and cooperative/competitive dynamics) in common
-#  5: "Innate" parameters plus response to environment in common
-#  6: "Innate" parameters plus response to environment + 50% environment in common
-#  7: "Innate" parameters plus response to environment + 80% environment in common
+#' The shared parameter flag can take values
+#' 0: Nothing in common between hosts
+#' 1: "Innate" parameters (baseline abundances and cooperative/competitive dynamics) in common
+#' 2: "Innate" parameters plus response to environment in common
 #' @export
-simulate_scenario <- function(S, H, scenario, start_time = 1000, end_time = 2000, PhiE = 0.5, almean = 0.1) {
+simulate_scenario <- function(S, H, shared_param_level, shared_noise_proportion, start_time = 1000, end_time = 2000, PhiE = 0.5, almean = 0.1) {
   # Original simulation used PhiE = 0.5 and swept through almean in c(-0.1, 0.1, 0.5, 0.9)
   # Generate global perturbations
   perturbation_sd <- 100
@@ -156,31 +153,6 @@ simulate_scenario <- function(S, H, scenario, start_time = 1000, end_time = 2000
   
   series_list <- list()
   heatmap <- matrix(NA, H, (S^2 - S)/2)
-  
-  # Scenarios
-  #  1: Nothing in common between hosts
-  #  2: 50% Environment in common
-  #  3: 80% Environment in common
-  #  4: "Innate" parameters (baseline abundances and cooperative/competitive dynamics) in common
-  #  5: "Innate" parameters plus response to environment in common
-  #  6: "Innate" parameters plus response to environment + 50% environment in common
-  #  7: "Innate" parameters plus response to environment + 80% environment in common
-  
-  shared_param_level <- 0 # 0: none, 1: "innate", 2: link to env.
-  if(scenario %in% c(4)) {
-    shared_param_level <- 1
-  }
-  if(scenario %in% c(5, 6, 7)) {
-    shared_param_level <- 2
-  }
-  
-  shared_noise_proportion <- 0
-  if(scenario %in% c(2, 6)) {
-    shared_noise_proportion <- 0.5
-  }
-  if(scenario %in% c(3, 7)) {
-    shared_noise_proportion <- 0.8
-  }
   
   global_innate_params <- NULL
   global_env_link <- NULL
