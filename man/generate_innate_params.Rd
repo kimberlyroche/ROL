@@ -6,7 +6,7 @@
 stochastic Lotka-Volterra
 This code is adapted directly from Tredennick et al. (2017)}
 \usage{
-generate_innate_params(S, start_time, end_time, PhiE, almean)
+generate_innate_params(S, start_time, end_time, PhiE, almeanL)
 }
 \arguments{
 \item{S}{number of species to simulate}

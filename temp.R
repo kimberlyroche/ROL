@@ -1,0 +1,18 @@
+rm(list = ls())
+library(ROL)
+d1 <- load_Johnson_2D_summary(); summarize_all_pairs_2D(d1)
+d1 <- load_Caporaso_2D_summary(); summarize_all_pairs_2D(d1)
+d1 <- load_David_2D_summary(); summarize_all_pairs_2D(d1)
+d1 <- load_DIABIMMUNE_2D_summary(); summarize_all_pairs_2D(d1)
+d1 <- load_McMahon_shallow_2D_summary(); summarize_all_pairs_2D(d1)
+d1 <- load_McMahon_deep_2D_summary(); summarize_all_pairs_2D(d1)
+d1 <- load_Grossart_2D_summary(); summarize_all_pairs_2D(d1)
+
+viz <- "bars"
+test <- load_Johnson_2D_summary(visualize = viz)
+test <- load_Caporaso_2D_summary(visualize = viz)
+test <- load_David_2D_summary(visualize = viz)
+test <- load_DIABIMMUNE_2D_summary(visualize = viz)
+test <- load_McMahon_shallow_2D_summary(visualize = viz)
+test <- load_McMahon_deep_2D_summary(visualize = viz)
+test <- load_Grossart_2D_summary(visualize = viz)

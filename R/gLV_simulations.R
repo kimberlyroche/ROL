@@ -13,7 +13,7 @@
 #' @return named list of parameters
 #' @import LaplacesDemon
 #' @export
-generate_innate_params <- function(S, start_time, end_time, PhiE, almean) {
+generate_innate_params <- function(S, start_time, end_time, PhiE, almeanL) {
   if(PhiE != 1/S) {
     beta = (PhiE - 1 + sqrt(PhiE*(1 - PhiE)*(S - 1)))/(S*PhiE - 1)
   } else {
@@ -22,7 +22,7 @@ generate_innate_params <- function(S, start_time, end_time, PhiE, almean) {
   
   # K <- rnorm(S, mean = 5000, sd = 0.7)
   K <- round(rdirichlet(1, rep(1, S))*10000)[1,] + runif(S, min = 1, max = 20) # prevent zeros here
-    
+  
   alsi <- matrix(rnorm(S*S, mean = almean, sd = runif(1, min = 0.001, max = 0.05)), nrow=S, ncol=S)
   al <- alsi*matrix(K, S, S)/t(matrix(K, S, S))
   diag(al) <- 1
@@ -145,7 +145,8 @@ convert_series_clr <- function(TS) {
 #' 1: "Innate" parameters (baseline abundances and cooperative/competitive dynamics) in common
 #' 2: "Innate" parameters plus response to environment in common
 #' @export
-simulate_scenario <- function(S, H, shared_param_level, shared_noise_proportion, start_time = 1000, end_time = 2000, PhiE = 0.5, almean = 0.1) {
+simulate_scenario <- function(S, H, shared_param_level, shared_noise_proportion, start_time = 1000, end_time = 2000,
+                              PhiE = 0.5, almean = 0.1) {
   # Original simulation used PhiE = 0.5 and swept through almean in c(-0.1, 0.1, 0.5, 0.9)
   # Generate global perturbations
   perturbation_sd <- 100
