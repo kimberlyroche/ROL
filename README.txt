@@ -1,6 +1,8 @@
 ## Required module
 module add R/3.6.1-gcb03
-module add gcc/7.3.0-gcb01
+module add gcc/gcc/7.1.0-fasrc01
+
+## Previously: module add gcc/7.3.0-gcb01
 
 ## fido setup (for labraduck)
 # to build .tar.gz
