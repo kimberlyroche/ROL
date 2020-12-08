@@ -60,7 +60,7 @@ for(p1_idx in 1:length(almean_scenarios)) {
       scale_color_manual(values = palette)
     plot_list[[i+1]] <- p
   }
-  grid.arrange(grobs = plot_list, ncol = 3)
+  p <- grid.arrange(grobs = plot_list, ncol = 3)
   ggsave(paste0("simulation_sweep_",p1_idx,".png"), p, units = "in", dpi = 100, height = 4, width = 11)
 }
 
