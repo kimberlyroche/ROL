@@ -13,7 +13,7 @@
 #' @return named list of parameters
 #' @import LaplacesDemon
 #' @export
-generate_innate_params <- function(S, start_time, end_time, PhiE, almeanL) {
+generate_innate_params <- function(S, start_time, end_time, PhiE, almean) {
   if(PhiE != 1/S) {
     beta = (PhiE - 1 + sqrt(PhiE*(1 - PhiE)*(S - 1)))/(S*PhiE - 1)
   } else {
